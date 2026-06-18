@@ -32,7 +32,7 @@ jobs:
           rm -rf android
           flutter create . --platforms=android
 
-      # ⚡ स्टेप 2 (महा ब्रह्मास्त्र): यह कमांड ग्रैडल को आदेश देगी कि सारे प्लगइन्स (जैसे file_picker) को ज़बरदस्ती SDK 36 पर ही बिल्ड करे
+      # ⚡ स्टेप 2: सारे प्लगइन्स (जैसे file_picker) को ज़बरदस्ती SDK 36 पर ही बिल्ड करना
       - name: Force Android SDK 36 on All Plugins (Subprojects)
         run: |
           BUILD_GRADLE="android/build.gradle"
@@ -55,8 +55,9 @@ jobs:
       - name: Build Android APK
         run: flutter build apk --release
 
+      # 📦 स्टेप 3 (फ़िक्स पाथ): यह बदले हुए नए पाथ से APK फाइल को उठाकर आपको डाउनलोड लिंक देगा
       - name: Upload Build Artifact (APK)
         uses: actions/upload-artifact@v4
         with:
           name: ins-rama-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/apk/release/*.apk
