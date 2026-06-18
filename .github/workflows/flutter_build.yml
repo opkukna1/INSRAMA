@@ -1,4 +1,4 @@
-name: INS Rama Flutter CI/CD (Fast Auto-Fix)
+name: INS Rama Flutter CI/CD
 
 on:
   push:
@@ -26,25 +26,16 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 🪄 स्टेप 1: पुराना कचरा साफ़ करके नया क्लीन एंड्रॉइड फोल्डर बनाना
-      - name: Recreate Clean Android Folder
+      # ⚡ सुरक्षित फिक्स: बिना कोई एंड्रॉइड फोल्डर डिलीट किए सिर्फ वर्शन को 36 पर अपडेट करना
+      - name: Update SDK to 36 for file_picker
         run: |
-          rm -rf android
-          flutter create . --platforms=android
-
-      # ⚡ स्टेप 2: सारे प्लगइन्स (जैसे file_picker) को ज़बरदस्ती SDK 36 पर ही बिल्ड करना
-      - name: Force Android SDK 36 on All Plugins (Subprojects)
-        run: |
-          BUILD_GRADLE="android/build.gradle"
-          FORCE_SDK_SCRIPT='\nsubprojects {\n    afterEvaluate { project ->\n        if (project.hasProperty("android")) {\n            project.android {\n                compileSdk = 36\n                defaultConfig {\n                    targetSdk = 36\n                }\n            }\n        }\n    }\n}'
-          echo -e "$FORCE_SDK_SCRIPT" >> $BUILD_GRADLE
-
-      # 🔑 एआई और स्टोरेज के लिए अनुमतियां (Permissions) जोड़ना
-      - name: Inject Internet Permissions for Gemini AI
-        run: |
-          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          PERMISSIONS='    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />'
-          sed -i "s|<manifest[^>]*>|&\n$PERMISSIONS|" $MANIFEST_PATH
+          FILE="android/app/build.gradle"
+          if [ -f "$FILE" ]; then
+            sed -i -E 's/compileSdkVersion[[:space:]]+.*/compileSdkVersion 36/' $FILE
+            sed -i -E 's/compileSdk[[:space:]]+.*/compileSdk 36/' $FILE
+            sed -i -E 's/targetSdkVersion[[:space:]]+.*/targetSdkVersion 36/' $FILE
+            sed -i -E 's/targetSdk[[:space:]]+.*/targetSdk 36/' $FILE
+          fi
 
       - name: Install dependencies
         run: flutter pub get
@@ -55,9 +46,9 @@ jobs:
       - name: Build Android APK
         run: flutter build apk --release
 
-      # 📦 स्टेप 3 (फ़िक्स पाथ): यह बदले हुए नए पाथ से APK फाइल को उठाकर आपको डाउनलोड लिंक देगा
+      # 📦 ओरिजिनल सही पाथ से APK उठाना
       - name: Upload Build Artifact (APK)
         uses: actions/upload-artifact@v4
         with:
           name: ins-rama-release-apk
-          path: build/app/outputs/apk/release/*.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
