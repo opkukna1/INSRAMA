@@ -1,8 +1,10 @@
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import '../database/db_helper.dart';
 import 'society_management_screen.dart';
 import 'bill_upload_screen.dart';
 import 'accounts_screen.dart';
+import 'audit_report_screen.dart'; // ऑडिट रिपोर्ट स्क्रीन का इम्पोर्ट
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadDashboardStats();
   }
 
-  // ऐप खुलते ही डेटाबेस से रजिस्टर्ड समितियों की संख्या गिनना
+  // ऐप खुलते ही या रीफ्रेश होने पर लोकल DB से पंजीकृत समितियों की संख्या गिनना
   void _loadDashboardStats() async {
     final societies = await DatabaseHelper.instance.queryAllSocieties();
     setState(() {
@@ -38,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadDashboardStats, // डेटा रीफ्रेश करने के लिए
+            onPressed: _loadDashboardStats, // डेटा रीफ्रेश करने के लिए बटन
           )
         ],
       ),
@@ -75,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'लोकल डेटाबेस में कुल पंजीकृत समितियां: $_societyCount',
+                            'लोकल डेटाबेेस में कुल पंजीकृत समितियां: $_societyCount',
                             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                           ),
                         ],
@@ -93,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 2. ग्रिड मेनू नेविगेशन के लिए
+            // 2. ग्रिड मेनू नेविगेशन के लिए (सभी 4 फीचर्स अब एक्टिव हैं)
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
@@ -123,10 +125,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _buildMenuCard(
                     context,
-                    title: 'ऑडिट रिपोर्ट्स\n(GSS/Upcoming)',
+                    title: 'ऑडिट रिपोर्ट्स\n(AI Reports)',
                     icon: Icons.assignment_turned_in,
-                    color: Colors.grey.shade600,
-                    targetScreen: null, // आगामी फीचर के लिए
+                    color: Colors.teal.shade700,
+                    targetScreen: const AuditReportScreen(), // अब यह स्क्रीन से जुड़ चुका है
                   ),
                 ],
               ),
@@ -143,20 +145,17 @@ class _HomeScreenState extends State<HomeScreen> {
     required String title,
     required IconData icon,
     required Color color,
-    required Widget? targetScreen,
+    required Widget targetScreen,
   }) {
     return InkWell(
       onTap: () {
-        if (targetScreen != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => targetScreen)).then((_) {
-            // जब यूजर स्क्रीन से वापस आए, तो होम स्क्रीन के आंकड़े रीफ्रेश करें
-            _loadDashboardStats();
-          });
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('यह मॉड्यूल आगामी चरण में सक्रिय किया जाएगा।')),
-          );
-        }
+        Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (context) => targetScreen)
+        ).then((_) {
+          // जब यूजर किसी स्क्रीन से बैक दबाकर वापस होम पर आए, तो स्टेट्स दोबारा लोड करें
+          _loadDashboardStats();
+        });
       },
       child: Card(
         elevation: 2,
@@ -180,7 +179,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white, 
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 14,
+                    height: 1.3
+                  ),
                 ),
               ],
             ),
