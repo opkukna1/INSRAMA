@@ -1,53 +1,20 @@
-// android/app/build.gradle
+// android/build.gradle
 
-plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    id "dev.flutter.flutter-gradle-plugin"
-}
-
-android {
-    // आपके सिस्टम के अनुसार कम्पाइल वर्शन (34 या 35 बेस्ट है)
-    compileSdk 34
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
-
-    defaultConfig {
-        // आपके ऐप की यूनिक आईडी
-        applicationId "com.example.ins_rama"
-        
-        // 🔥 सबसे महत्वपूर्ण बदलाव: इसे 21 या उससे ऊपर करना अनिवार्य है
-        // ताकि Gemini AI और SQLite डेटाबेस बिना किसी एरर के लोड हो सकें
-        minSdk 21 
-        
-        targetSdk 34
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
-    }
-
-    buildTypes {
-        release {
-            signingConfig signingConfigs.debug
-        }
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
     }
 }
 
-flutter {
-    source '../..'
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
 }
 
-// 📦 एंड्रॉइड लेवल की नेटिव डिपेंडेंसीज
-dependencies {
-    // एंड्रॉइड मटीरियल डिज़ाइन सपोर्ट के लिए
-    implementation "com.google.android.material:material:1.11.0"
-    
-    // अगर आपका ऐप बहुत बड़ा हो जाए तो क्रैश न हो (MultiDex Support)
-    implementation "androidx.multidex:multidex:2.0.1"
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
 }
