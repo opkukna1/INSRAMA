@@ -1,5 +1,6 @@
-name: INS Rama Flutter CI/CD (Auto-Recreate Android)
+name: INS Rama Flutter CI/CD
 
+# यह तय करता है कि वर्कफ्लो कब रन होगा (Push या Pull Request पर)
 on:
   push:
     branches: [ "main", "master" ]
@@ -8,14 +9,15 @@ on:
 
 jobs:
   build:
+    # यह जॉब गिटहब के क्लाउड (Ubuntu Linux) पर चलेगी
     runs-on: ubuntu-latest
 
     steps:
-      # 1. गिटहब रिपॉजिटरी से कोड को क्लाउड पर लाना
+      # 1. गिटहब रिपॉजिटरी से कोड को क्लाウド पर लाना
       - name: Checkout repository code
         uses: actions/checkout@v4
 
-      # 2. जावा एनवायरनमेंट (JDK 17) सेटअप करना
+      # 2. जावा एनवायरनमेंट (JDK 17) सेटअप करना (Android Build के लिए ज़रूरी है)
       - name: Set up Java/JDK 17
         uses: actions/setup-java@v4
         with:
@@ -28,34 +30,19 @@ jobs:
         with:
           channel: 'stable'
 
-      # 4. पुराना एंड्रॉइड फोल्डर डिलीट करके नया जेनरेट करना (मैजिक स्टेप 🪄)
-      - name: Recreate Clean Android Folder
-        run: |
-          rm -rf android
-          flutter create . --platforms=android
-
-      # 5. नई AndroidManifest.xml में इंटरनेट परमिशन ऑटोमैटिकली इन्सर्ट करना
-      - name: Inject Internet Permissions for Gemini AI
-        run: |
-          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          PERMISSIONS='    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />'
-          
-          # <manifest टैग के ठीक बाद परमिशन इन्सर्ट करने के लिए sed कमांड का उपयोग
-          sed -i "s|<manifest[^>]*>|&\n$PERMISSIONS|" $MANIFEST_PATH
-
-      # 6. pubspec.yaml की सभी डिपेंडेंसीज डाउनलोड करना
+      # 4. pubspec.yaml की सभी डिपेंडेंसीज डाउनलोड करना
       - name: Install dependencies
         run: flutter pub get
 
-      # 7. कोड की जांच करना (ताकि कोड एरर न हो)
+      # 5. कोड फॉर्मेटिंग और स्टेटिक एनालिसिस की जांच करना (अब यह बिना एरर पास होगा)
       - name: Analyze Flutter code
         run: flutter analyze
 
-      # 8. फ्रेश एंड्रॉइड APK (Release Version) बिल्ड करना
+      # 6. एंड्रॉइड APK (Release Version) बिल्ड करना
       - name: Build Android APK
         run: flutter build apk --release
 
-      # 9. तैयार हुए APK को गिटहब पर अपलोड करना
+      # 7. तैयार हुए APK को गिटहब पर 'Artifact' के रूप में अपलोड करना
       - name: Upload Build Artifact (APK)
         uses: actions/upload-artifact@v4
         with:
