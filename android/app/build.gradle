@@ -1,20 +1,64 @@
-// android/build.gradle
+name: INS Rama Flutter CI/CD (Fast Auto-Fix)
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
-rootProject.buildDir = "../build"
-subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
-}
-subprojects {
-    project.evaluationDependsOn(":app")
-}
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-tasks.register("clean", Delete) {
-    delete rootProject.buildDir
-}
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Java/JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      # 🪄 जादूई स्टेप 1: यह आपके गिटहब रिपॉजिटरी के पुराने एंड्रॉइड फोल्डर को सर्वर पर ही तुरंत ठीक कर देगा
+      - name: Recreate Clean Android Folder
+        run: |
+          rm -rf android
+          flutter create . --platforms=android
+
+      # ⚡ जादूई स्टेप 2 (नया फ़िक्स): यह कमांड नए एंड्रॉइड फोल्डर में जाकर compileSdk और targetSdk को ऑटोमैटिकली 36 कर देगी ताकि file_picker एरर न दे
+      - name: Force Android SDK 36 for file_picker
+        run: |
+          APP_BUILD_GRADLE="android/app/build.gradle"
+          sed -i 's/compileSdk = .*/compileSdk = 36/g' $APP_BUILD_GRADLE || true
+          sed -i 's/compileSdk flutter.*/compileSdk 36/g' $APP_BUILD_GRADLE || true
+          sed -i 's/targetSdk = .*/targetSdk = 36/g' $APP_BUILD_GRADLE || true
+          sed -i 's/targetSdk flutter.*/targetSdk 36/g' $APP_BUILD_GRADLE || true
+
+      # 🔑 एआई और स्टोरेज के लिए अनुमतियां (Permissions) जोड़ना
+      - name: Inject Internet Permissions for Gemini AI
+        run: |
+          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+          PERMISSIONS='    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />'
+          sed -i "s|<manifest[^>]*>|&\n$PERMISSIONS|" $MANIFEST_PATH
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        run: flutter analyze
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Upload Build Artifact (APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ins-rama-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
