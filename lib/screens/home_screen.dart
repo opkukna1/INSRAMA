@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 2. ग्रिड मेनू नेविगेशन के लिए (सभी 4 फीचर्स अब एक्टिव हैं)
+            // 2. ग्रिड मेनू नेविगेशन के लिए
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: 'ऑडिट रिपोर्ट्स\n(AI Reports)',
                     icon: Icons.assignment_turned_in,
                     color: Colors.teal.shade700,
-                    targetScreen: const AuditReportScreen(), // अब यह स्क्रीन से जुड़ चुका है
+                    targetScreen: const AuditReportScreen(),
                   ),
                 ],
               ),
@@ -164,7 +164,8 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.85), color],
+              // 🔥 फिक्स: यहाँ नए फ्लटर के अनुसार 'withOpacity(0.85)' को बदलकर 'withValues(alpha: 0.85)' किया गया है
+              colors: [color.withValues(alpha: 0.85), color],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
