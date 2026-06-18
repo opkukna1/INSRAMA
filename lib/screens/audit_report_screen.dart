@@ -1,6 +1,6 @@
+// lib/screens/audit_report_screen.dart
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/generative_model.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:google_generative_ai/google_generative_ai.dart'; // फिक्स: गैर-जरूरी दूसरा इम्पोर्ट हटा दिया
 import '../database/db_helper.dart';
 
 class AuditReportScreen extends StatefulWidget {
@@ -13,7 +13,7 @@ class AuditReportScreen extends StatefulWidget {
 class _AuditReportScreenState extends State<AuditReportScreen> {
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
-  String _apiKey = ""; // यूजर यहाँ भी अपनी की डाल सकता है या डिफ़ॉल्ट ले सकता है
+  String _apiKey = ""; 
   bool _isLoading = false;
   String _generatedReport = "";
 
@@ -31,7 +31,6 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
     });
   }
 
-  // एआई से पूरी ऑडिट रिपोर्ट ड्राफ्ट करवाने का फंक्शन
   void _generateAuditReport() async {
     if (_selectedSocietyId == null) return;
     if (_apiKey.isEmpty) {
@@ -42,7 +41,6 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
     setState(() { _isLoading = true; _generatedReport = ""; });
 
     try {
-      // 1. लोकल DB से उस समिति का डेटा निकालना
       final bills = await DatabaseHelper.instance.queryBillsBySociety(_selectedSocietyId!);
       
       double totalMilk = 0.0;
@@ -55,10 +53,8 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
         totalOverhead += (b['overhead'] ?? 0.0) as double;
       }
 
-      // 2. जेमिनी मॉडल सेटअप
       final model = GenerativeModel(model: 'gemini-1.5-pro', apiKey: _apiKey);
       
-      // 3. ऑडिट रिपोर्ट के लिए प्रॉम्प्ट
       final prompt = '''
       You are a Government Cooperative Auditor (सहकारी अंकेक्षक). 
       Generate a professional Audit Report (अंकेक्षण प्रतिवेदन) in clear HINDI language for a Milk Cooperative Society with the following annual financial summaries:
@@ -118,13 +114,16 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
                     onChanged: (val) => _apiKey = val,
                   ),
                   const SizedBox(height: 12),
+                  
+                  // फिक्स: यहाँ नए फ्लटर के अनुसार value को initialValue में बदल दिया है
                   DropdownButtonFormField<int>(
-                    value: _selectedSocietyId,
+                    initialValue: _selectedSocietyId, 
                     decoration: const InputDecoration(labelText: "समिति चुनें", border: OutlineInputBorder()),
                     items: _societies.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name']))).toList(),
                     onChanged: (val) => setState(() { _selectedSocietyId = val; }),
                   ),
                   const SizedBox(height: 16),
+                  
                   SizedBox(
                     width: double.infinity,
                     height: 45,
