@@ -1,4 +1,4 @@
-name: INS Rama Flutter CI/CD
+name: INS Rama Flutter CI/CD (Auto-Recreate Android)
 
 on:
   push:
@@ -11,31 +11,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. गिटहब रिपॉजिटरी से कोड को क्लाउड पर लाना
       - name: Checkout repository code
         uses: actions/checkout@v4
 
+      # 2. जावा एनवायरनमेंट (JDK 17) सेटअप करना
       - name: Set up Java/JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
+      # 3. फ़्लटर (Flutter) का लेटेस्ट स्टेबल एनवायरनमेंट सेटअप करना
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
+      # 4. पुराना एंड्रॉइड फोल्डर डिलीट करके नया जेनरेट करना (मैजिक स्टेप 🪄)
+      - name: Recreate Clean Android Folder
+        run: |
+          rm -rf android
+          flutter create . --platforms=android
+
+      # 5. नई AndroidManifest.xml में इंटरनेट परमिशन ऑटोमैटिकली इन्सर्ट करना
+      - name: Inject Internet Permissions for Gemini AI
+        run: |
+          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+          PERMISSIONS='    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />'
+          
+          # <manifest टैग के ठीक बाद परमिशन इन्सर्ट करने के लिए sed कमांड का उपयोग
+          sed -i "s|<manifest[^>]*>|&\n$PERMISSIONS|" $MANIFEST_PATH
+
+      # 6. pubspec.yaml की सभी डिपेंडेंसीज डाउनलोड करना
       - name: Install dependencies
         run: flutter pub get
 
+      # 7. कोड की जांच करना (ताकि कोड एरर न हो)
       - name: Analyze Flutter code
         run: flutter analyze
 
-      # 🛠️ फ़िक्स: यहाँ से 'Run Flutter tests' वाला स्टेप हटा दिया गया है
-
+      # 8. फ्रेश एंड्रॉइड APK (Release Version) बिल्ड करना
       - name: Build Android APK
         run: flutter build apk --release
 
+      # 9. तैयार हुए APK को गिटहब पर अपलोड करना
       - name: Upload Build Artifact (APK)
         uses: actions/upload-artifact@v4
         with:
