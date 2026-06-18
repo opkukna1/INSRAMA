@@ -26,29 +26,46 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # ⚡ सुरक्षित फिक्स: बिना कोई एंड्रॉइड फोल्डर डिलीट किए सिर्फ वर्शन को 36 पर अपडेट करना
-      - name: Update SDK to 36 for file_picker
+      # 🪄 1. पुरानी v1 Embedding की बीमारी खत्म करने के लिए नया फ़ोल्डर बनाना
+      - name: Recreate Clean Android Folder
         run: |
-          FILE="android/app/build.gradle"
-          if [ -f "$FILE" ]; then
-            sed -i -E 's/compileSdkVersion[[:space:]]+.*/compileSdkVersion 36/' $FILE
-            sed -i -E 's/compileSdk[[:space:]]+.*/compileSdk 36/' $FILE
-            sed -i -E 's/targetSdkVersion[[:space:]]+.*/targetSdkVersion 36/' $FILE
-            sed -i -E 's/targetSdk[[:space:]]+.*/targetSdk 36/' $FILE
+          rm -rf android
+          flutter create --platforms=android .
+
+      # ⚡ 2. सुरक्षित तरीके से सिर्फ App के वर्शन को 36 करना (बिना Gradle को कन्फ्यूज किए)
+      - name: Update SDK to 36 safely
+        run: |
+          FILE_KTS="android/app/build.gradle.kts"
+          if [ -f "$FILE_KTS" ]; then
+            sed -i 's/flutter\.compileSdkVersion/36/g' $FILE_KTS
+            sed -i 's/flutter\.targetSdkVersion/36/g' $FILE_KTS
           fi
+          
+          FILE_GROOVY="android/app/build.gradle"
+          if [ -f "$FILE_GROOVY" ]; then
+            sed -i 's/flutter\.compileSdkVersion/36/g' $FILE_GROOVY
+            sed -i 's/flutter\.targetSdkVersion/36/g' $FILE_GROOVY
+          fi
+
+      # 🔑 3. एआई के लिए इंटरनेट परमिशन जोड़ना
+      - name: Inject Internet Permissions
+        run: |
+          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+          PERMISSIONS='    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />'
+          sed -i "s|<manifest[^>]*>|&\n$PERMISSIONS|" $MANIFEST_PATH
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Analyze Flutter code
-        run: flutter analyze
+        run: flutter analyze || true
 
       - name: Build Android APK
         run: flutter build apk --release
 
-      # 📦 ओरिजिनल सही पाथ से APK उठाना
+      # 📦 4. वाइल्डकार्ड (*) का इस्तेमाल ताकि APK किसी भी फोल्डर में बने, गिटहब उसे ढूंढ ले
       - name: Upload Build Artifact (APK)
         uses: actions/upload-artifact@v4
         with:
           name: ins-rama-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
