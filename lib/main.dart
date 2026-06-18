@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 
@@ -23,10 +24,11 @@ class InsRamaApp extends StatelessWidget {
           primary: Colors.green.shade700,
           secondary: Colors.orange.shade700,
         ),
-        useMaterialDesign3: true, // मॉडर्न लुक के लिए मटेरियल 3 का उपयोग
         
-        // पूरे ऐप के कार्ड्स का डिफ़ॉल्ट डिज़ाइन
-        cardTheme: const CardTheme(
+        // 1. फ़िक्स: useMaterialDesign3 को यहाँ से हटा दिया है क्योंकि नए फ़्लटर में यह अब बाय-डिफ़ॉल्ट ट्रू (True) रहता है।
+
+        // 2. फ़िक्स: पूरे ऐप के कार्ड्स के लिए 'CardTheme' की जगह 'CardThemeData' का उपयोग किया है ताकि टाइप एरर न आए।
+        cardTheme: const CardThemeData(
           elevation: 2,
           margin: EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         ),
