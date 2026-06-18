@@ -1,3 +1,4 @@
+// lib/screens/outstanding_screen.dart
 import 'package:flutter/material.dart';
 import '../database/db_helper.dart';
 
@@ -84,9 +85,9 @@ class _OutstandingScreenState extends State<OutstandingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // समिति चयन ड्रॉपडाउन
+            // 🔥 फ़िक्स: यहाँ 'value' को बदलकर 'initialValue' कर दिया है ताकि नए फ्लटर में वॉर्निंग या एरर न आए
             DropdownButtonFormField<int>(
-              value: _selectedSocietyId,
+              initialValue: _selectedSocietyId,
               decoration: const InputDecoration(labelText: "समिति चुनें", border: OutlineInputBorder()),
               items: _societies.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name']))).toList(),
               onChanged: (val) {
