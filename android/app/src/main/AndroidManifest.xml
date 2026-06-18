@@ -1,10 +1,12 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.ins_rama"> <!-- आपके प्रोजेक्ट का पैकेज नाम -->
     
     <!-- 1. इंटरनेट अनुमति (Gemini AI API कॉल करने के लिए) -->
-    <uses-permission android:name="android.android.permission.INTERNET" />
+    <!-- 🔥 फ़िक्स: यहाँ से एक्स्ट्रा '.android' हटाकर नाम सही कर दिया है -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- 2. स्टोरेज अनुमति (फोन से पीडीएफ बिल और स्टेटमेंट चुनने के लिए) -->
+    <!-- 2. स्टोरेज अनुमति (फोन से पीडीएफ बिल चुनने के लिए) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     
@@ -15,4 +17,30 @@
         android:label="INS Rama"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <!-- बाकी का कोड वैसा ही रहने दें -->
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|locale|layoutDirection|fontScale|screenAspectRatio|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            
+            <!-- यह थीम फ्लटर v2 एम्बेडिंग के लिए ज़रूरी है -->
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <!-- बूटस्ट्रैप और इंजन लोडिंग के लिए आवश्यक मेटा-डेटा -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
