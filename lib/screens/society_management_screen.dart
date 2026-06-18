@@ -1,3 +1,4 @@
+// lib/screens/society_management_screen.dart
 import 'package:flutter/material.dart';
 import '../database/db_helper.dart';
 
@@ -84,8 +85,9 @@ class _SocietyManagementScreenState extends State<SocietyManagementScreen> {
                       const Text('🆕 नई समिति का पंजीकरण करें', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       
+                      // 🔥 फ़िक्स: नए फ़्लटर नियमों के अनुसार 'value' को 'initialValue' में बदल दिया गया है
                       DropdownButtonFormField<String>(
-                        value: _selectedType,
+                        initialValue: _selectedType,
                         decoration: const InputDecoration(labelText: 'समिति का प्रकार', border: OutlineInputBorder()),
                         items: [
                           "Dugdh Utpadak Samiti (दुग्ध समिति)",
