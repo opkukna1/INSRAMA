@@ -1,51 +1,39 @@
+// lib/database/db_helper.dart
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
-class DatabaseHelper {
-  static const _databaseName = "ins_rama_local.db";
-  static const _databaseVersion = 1;
-
-  // सिंगलटन पैटर्न (ताकि पूरे ऐप में डेटाबेस का एक ही कनेक्शन रहे)
-  DatabaseHelper._privateConstructor();
-  static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
+class DBHelper {
+  // Singleton pattern ताकि पूरे ऐप में डेटाबेस का एक ही इंस्टेंस रहे
+  static final DBHelper _instance = DBHelper._internal();
+  factory DBHelper() => _instance;
+  DBHelper._internal();
 
   static Database? _database;
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDatabase();
+    _database = await _initDB();
     return _database!;
   }
 
-  _initDatabase() async {
-    String path = join(await getDatabasesPath(), _databaseName);
+  // 1. डेटाबेस इनिशियलाइज़ करना
+  Future<Database> _initDB() async {
+    String path = join(await getDatabasesPath(), 'ins_rama_accounting.db');
+    
     return await openDatabase(
       path,
-      version: _databaseVersion,
+      version: 1,
       onCreate: _onCreate,
     );
   }
 
-  // फोन के अंदर लोकल टेबल्स बनाने का कोड
+  // 2. टेबल बनाना (AI के JSON Schema के आधार पर)
   Future _onCreate(Database db, int version) async {
-    // 1. समितियों की मास्टर टेबल (Dugdh, GSS, Mahila Samiti सब इसी में हैंडल होंगी)
     await db.execute('''
-      CREATE TABLE societies (
+      CREATE TABLE bills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        code TEXT UNIQUE,
-        bank_account TEXT,
-        ifsc TEXT
-      )
-    ''');
-
-    // 2. दुग्ध बिलों का डेटा स्टोर करने के लिए टेबल
-    await db.execute('''
-      CREATE TABLE milk_bills (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        society_id INTEGER,
-        bill_no TEXT UNIQUE,
+        bill_no TEXT,
         start_date TEXT,
         end_date TEXT,
         total_milk REAL,
@@ -53,76 +41,47 @@ class DatabaseHelper {
         head_load REAL,
         overhead REAL,
         ghee_deduction REAL,
-        cattle_feed_deduction REAL,
-        FOREIGN KEY (society_id) REFERENCES societies (id) ON DELETE CASCADE
-      )
-    ''');
-
-    // 3. सदस्यों की बकाया सूची (Bakaya Suchi) के लिए टेबल
-    await db.execute('''
-      CREATE TABLE members_outstanding (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        society_id INTEGER,
-        member_name TEXT NOT NULL,
-        father_name TEXT,
-        share_capital REAL DEFAULT 0.0,
-        outstanding_amount REAL DEFAULT 0.0,
-        FOREIGN KEY (society_id) REFERENCES societies (id) ON DELETE CASCADE
-      )
-    ''');
-
-    // 4. बैंक पासबुक / लेजर एंट्रीज के लिए टेबल
-    await db.execute('''
-      CREATE TABLE bank_ledger (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        society_id INTEGER,
-        txn_date TEXT,
-        description TEXT,
-        debit REAL,
-        credit REAL,
-        balance REAL,
-        FOREIGN KEY (society_id) REFERENCES societies (id) ON DELETE CASCADE
+        cattle_feed_deduction REAL
       )
     ''');
   }
 
-  // ------------------------------------------------------------------
-  // डेटाबेस में डेटा इन्सर्ट (Insert) और क्वेरी (Query) करने के फंक्शन्स
-  // ------------------------------------------------------------------
-
-  // नई समिति जोड़ें
-  Future<int> insertSociety(Map<String, dynamic> row) async {
-    Database db = await instance.database;
-    return await db.insert('societies', row, conflictAlgorithm: ConflictAlgorithm.replace);
+  // 3. नया बिल डेटाबेस में सेव करना (AI प्रोसेसिंग के बाद)
+  Future<int> insertBill(Map<String, dynamic> billData) async {
+    Database db = await database;
+    return await db.insert('bills', billData, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  // सभी समितियों की लिस्ट देखें
-  Future<List<Map<String, dynamic>>> queryAllSocieties() async {
-    Database db = await instance.database;
-    return await db.query('societies');
+  // 4. सारे बिल डेटाबेस से निकालना (UI में दिखाने और P&L बनाने के लिए)
+  Future<List<Map<String, dynamic>>> getAllBills() async {
+    Database db = await database;
+    return await db.query('bills', orderBy: "id DESC");
   }
 
-  // नया दुग्ध बिल डेटा सेव करें
-  Future<int> insertMilkBill(Map<String, dynamic> row) async {
-    Database db = await instance.database;
-    return await db.insert('milk_bills', row, conflictAlgorithm: ConflictAlgorithm.replace);
+  // 5. किसी बिल को अपडेट करना (जब यूज़र कोई गलती सुधार कर Edit करे)
+  Future<int> updateBill(int id, Map<String, dynamic> updatedData) async {
+    Database db = await database;
+    return await db.update(
+      'bills',
+      updatedData,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
-  // किसी एक समिति के सभी बिल निकालें
-  Future<List<Map<String, dynamic>>> queryBillsBySociety(int societyId) async {
-    Database db = await instance.database;
-    return await db.query('milk_bills', where: 'society_id = ?', whereArgs: [societyId]);
+  // 6. किसी बिल को डिलीट करना
+  Future<int> deleteBill(int id) async {
+    Database db = await database;
+    return await db.delete(
+      'bills',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
-  // सदस्यों की बकाया सूची सेव करें
-  Future<int> insertMemberOutstanding(Map<String, dynamic> row) async {
-    Database db = await instance.database;
-    return await db.insert('members_outstanding', row);
-  }
-
-  // किसी समिति की पूरी बकाया सूची निकालें
-  Future<List<Map<String, dynamic>>> queryOutstandingBySociety(int societyId) async {
-    Database db = await instance.database;
-    return await db.query('members_outstanding', where: 'society_id = ?', whereArgs: [societyId]);
+  // 7. डेटाबेस का सारा कचरा साफ करना (Reset all data)
+  Future<void> clearAllBills() async {
+    Database db = await database;
+    await db.execute('DELETE FROM bills');
   }
 }
