@@ -1,6 +1,6 @@
 // lib/screens/audit_report_screen.dart
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/google_generative_ai.dart'; // फिक्स: गैर-जरूरी दूसरा इम्पोर्ट हटा दिया
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../database/db_helper.dart';
 
 class AuditReportScreen extends StatefulWidget {
@@ -11,9 +11,9 @@ class AuditReportScreen extends StatefulWidget {
 }
 
 class _AuditReportScreenState extends State<AuditReportScreen> {
+  final _apiKeyController = TextEditingController(); // 🔥 सुधार: API की के लिए कंट्रोलर का उपयोग
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
-  String _apiKey = ""; 
   bool _isLoading = false;
   String _generatedReport = "";
 
@@ -33,7 +33,7 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
 
   void _generateAuditReport() async {
     if (_selectedSocietyId == null) return;
-    if (_apiKey.isEmpty) {
+    if (_apiKeyController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("कृपया पहले Gemini API Key दर्ज करें")));
       return;
     }
@@ -53,7 +53,7 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
         totalOverhead += (b['overhead'] ?? 0.0) as double;
       }
 
-      final model = GenerativeModel(model: 'gemini-1.5-pro', apiKey: _apiKey);
+      final model = GenerativeModel(model: 'gemini-1.5-pro', apiKey: _apiKeyController.text);
       
       final prompt = '''
       You are a Government Cooperative Auditor (सहकारी अंकेक्षक). 
@@ -73,11 +73,17 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
 
       final response = await model.generateContent([Content.text(prompt)]);
       
+      // 🔥 फिक्स: एसिंक्रोनस ऑपरेशन के बाद स्टेट सेट करने और context का उपयोग करने से पहले mounted चेक अनिवार्य है
+      if (!mounted) return;
+
       setState(() {
         _generatedReport = response.text ?? "रिपोर्ट जनरेट नहीं हो सकी।";
         _isLoading = false;
       });
     } catch (e) {
+      // 🔥 फिक्स: कैच ब्लॉक के बाद भी स्क्रीन खुली है या नहीं, यह सुनिश्चित करना ज़रूरी है
+      if (!mounted) return;
+      
       setState(() { _isLoading = false; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("त्रुटि: $e")));
     }
@@ -109,13 +115,12 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
+                    controller: _apiKeyController,
                     obscureText: true,
                     decoration: const InputDecoration(labelText: 'Gemini API Key दर्ज करें', border: OutlineInputBorder()),
-                    onChanged: (val) => _apiKey = val,
                   ),
                   const SizedBox(height: 12),
                   
-                  // फिक्स: यहाँ नए फ्लटर के अनुसार value को initialValue में बदल दिया है
                   DropdownButtonFormField<int>(
                     initialValue: _selectedSocietyId, 
                     decoration: const InputDecoration(labelText: "समिति चुनें", border: OutlineInputBorder()),
@@ -154,5 +159,11 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
             ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _apiKeyController.dispose(); // 🔥 सुधार: कंट्रोलर को रिसोर्स फ्री करने के लिए डिस्पोज किया
+    super.dispose();
   }
 }
