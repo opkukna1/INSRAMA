@@ -1,3 +1,4 @@
+// lib/screens/bill_upload_screen.dart
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../database/db_helper.dart';
@@ -137,8 +138,10 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                     decoration: const InputDecoration(labelText: 'Gemini API Key दर्ज करें', border: OutlineInputBorder()),
                   ),
                   const SizedBox(height: 8),
+                  
+                  // फ़िक्स 1: यहाँ 'value' को बदलकर 'initialValue' कर दिया है
                   DropdownButtonFormField<String>(
-                    value: _selectedModel,
+                    initialValue: _selectedModel,
                     decoration: const InputDecoration(border: OutlineInputBorder(), labelText: "Model Name"),
                     items: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.5-pro"].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
                     onChanged: (val) => setState(() { _selectedModel = val!; }),
@@ -151,7 +154,8 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                   _societies.isEmpty
                       ? const Text("कोई समिति नहीं मिली। कृपया पहले समिति जोड़ें।", style: TextStyle(color: Colors.red))
                       : DropdownButtonFormField<int>(
-                          value: _selectedSocietyId,
+                          // फ़िक्स 2: यहाँ भी 'value' को बदलकर 'initialValue' कर दिया है
+                          initialValue: _selectedSocietyId,
                           decoration: const InputDecoration(border: OutlineInputBorder()),
                           items: _societies.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name']))).toList(),
                           onChanged: (val) => setState(() { _selectedSocietyId = val; }),
