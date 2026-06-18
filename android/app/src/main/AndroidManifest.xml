@@ -1,0 +1,18 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- 1. इंटरनेट अनुमति (Gemini AI API कॉल करने के लिए) -->
+    <uses-permission android:name="android.android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- 2. स्टोरेज अनुमति (फोन से पीडीएफ बिल और स्टेटमेंट चुनने के लिए) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    
+    <!-- आधुनिक एंड्रॉइड (Android 11+) के लिए फाइल पिकर की अनुकूलता -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+    <application
+        android:label="INS Rama"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <!-- बाकी का कोड वैसा ही रहने दें -->
