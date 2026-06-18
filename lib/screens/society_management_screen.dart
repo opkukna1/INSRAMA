@@ -54,6 +54,9 @@ class _SocietyManagementScreenState extends State<SocietyManagementScreen> {
       
       _refreshSocietiesList();
       
+      // 🔥 फ़िक्स: एसिंक्रोनस ऑपरेशन (await) के बाद context का उपयोग सुरक्षित करने के लिए mounted चेक लगाया
+      if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('समिति सफलतापूर्वक सुरक्षित कर दी गई है!')),
       );
@@ -85,7 +88,7 @@ class _SocietyManagementScreenState extends State<SocietyManagementScreen> {
                       const Text('🆕 नई समिति का पंजीकरण करें', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       
-                      // 🔥 फ़िक्स: नए फ़्लटर नियमों के अनुसार 'value' को 'initialValue' में बदल दिया गया है
+                      // फ़िक्स: नए फ़्लटर नियमों के अनुसार 'value' को 'initialValue' में बदल दिया गया है
                       DropdownButtonFormField<String>(
                         initialValue: _selectedType,
                         decoration: const InputDecoration(labelText: 'समिति का प्रकार', border: OutlineInputBorder()),
