@@ -26,28 +26,18 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 🪄 स्टेप 1: सर्वर पर बिल्कुल नया क्लीन एंड्रॉइड फोल्डर तैयार करना
+      # 🪄 स्टेप 1: पुराना कचरा साफ़ करके नया क्लीन एंड्रॉइड फोल्डर बनाना
       - name: Recreate Clean Android Folder
         run: |
           rm -rf android
           flutter create . --platforms=android
 
-      # ⚡ स्टेप 2 (महा-फ़िक्स): यह कमांड .gradle और .gradle.kts दोनों फॉर्मेट में compileSdk/targetSdk को 36 कर देगी
-      - name: Force Android SDK 36 for file_picker (All Formats)
+      # ⚡ स्टेप 2 (महा ब्रह्मास्त्र): यह कमांड ग्रैडल को आदेश देगी कि सारे प्लगइन्स (जैसे file_picker) को ज़बरदस्ती SDK 36 पर ही बिल्ड करे
+      - name: Force Android SDK 36 on All Plugins (Subprojects)
         run: |
-          # Groovy (.gradle) फ़ॉर्मेट के लिए फ़िक्स
-          if [ -f "android/app/build.gradle" ]; then
-            sed -i 's/compileSdk = .*/compileSdk = 36/g' android/app/build.gradle || true
-            sed -i 's/compileSdk flutter.*/compileSdk 36/g' android/app/build.gradle || true
-            sed -i 's/targetSdk = .*/targetSdk = 36/g' android/app/build.gradle || true
-            sed -i 's/targetSdk flutter.*/targetSdk 36/g' android/app/build.gradle || true
-          fi
-          
-          # Kotlin DSL (.gradle.kts) फ़ॉर्मेट के लिए फ़िक्स
-          if [ -f "android/app/build.gradle.kts" ]; then
-            sed -i 's/compileSdk = .*/compileSdk = 36/g' android/app/build.gradle.kts || true
-            sed -i 's/targetSdk = .*/targetSdk = 36/g' android/app/build.gradle.kts || true
-          fi
+          BUILD_GRADLE="android/build.gradle"
+          FORCE_SDK_SCRIPT='\nsubprojects {\n    afterEvaluate { project ->\n        if (project.hasProperty("android")) {\n            project.android {\n                compileSdk = 36\n                defaultConfig {\n                    targetSdk = 36\n                }\n            }\n        }\n    }\n}'
+          echo -e "$FORCE_SDK_SCRIPT" >> $BUILD_GRADLE
 
       # 🔑 एआई और स्टोरेज के लिए अनुमतियां (Permissions) जोड़ना
       - name: Inject Internet Permissions for Gemini AI
