@@ -66,6 +66,10 @@ class _OutstandingScreenState extends State<OutstandingScreen> {
       _outstandingController.clear();
 
       _loadMembers(_selectedSocietyId!);
+      
+      // 🔥 फ़िक्स: एसिंक्रोनस ऑपरेशन (await) के बाद context का सुरक्षित उपयोग सुनिश्चित करने के लिए mounted चेक लगाया
+      if (!mounted) return; 
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('सदस्य का रिकॉर्ड सुरक्षित कर दिया गया है!')),
       );
@@ -85,7 +89,6 @@ class _OutstandingScreenState extends State<OutstandingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔥 फ़िक्स: यहाँ 'value' को बदलकर 'initialValue' कर दिया है ताकि नए फ्लटर में वॉर्निंग या एरर न आए
             DropdownButtonFormField<int>(
               initialValue: _selectedSocietyId,
               decoration: const InputDecoration(labelText: "समिति चुनें", border: OutlineInputBorder()),
