@@ -107,6 +107,18 @@ class DatabaseHelper {
     });
   }
 
+  // 🚀 फिक्स: ऑडिट स्क्रीन द्वारा मांगे जाने वाले अपलोडेड बिलों/फाइलों की लिस्ट निकालने का मेथड
+  Future<List<Map<String, dynamic>>> queryBillsBySociety(int societyId) async {
+    final db = await database;
+    // चूँकि अपलोडेड बिलों की एंट्री 'processed_files' टेबल में होती है, इसलिए वहीं से डेटा निकाला गया है
+    return await db.query(
+      'processed_files', 
+      where: 'society_id = ?', 
+      whereArgs: [societyId],
+      orderBy: 'id DESC'
+    );
+  }
+
   // ==========================================
   //      MASTER LEDGER (इन-ऐप एक्सेल एडिटिंग के लिए)
   // ==========================================
@@ -123,7 +135,7 @@ class DatabaseHelper {
     return await db.query('master_ledger', where: 'society_id = ?', orderBy: 'date DESC');
   }
 
-  // 🚀 नया: एंट्री अपडेट करना (जब यूजर इन-ऐप एक्सेल शीट में डाटा एडिट करे)
+  // एंट्री अपडेट करना (जब यूजर इन-ऐप एक्सेल शीट में डाटा एडिट करे)
   Future<int> updateLedgerEntry(int id, Map<String, dynamic> updatedData) async {
     final db = await database;
     return await db.update(
@@ -134,7 +146,7 @@ class DatabaseHelper {
     );
   }
 
-  // 🚀 नया: एंट्री डिलीट करना
+  // एंट्री डिलीट करना
   Future<int> deleteLedgerEntry(int id) async {
     final db = await database;
     return await db.delete(
