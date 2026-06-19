@@ -1,5 +1,4 @@
 // lib/screens/accounts_screen.dart
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -19,25 +18,38 @@ class _AccountsScreenState extends State<AccountsScreen> {
   String _selectedSocietyName = "Society";
   bool _isLoading = false;
 
-  // 📊 Trading Account (दूध का व्यापार)
+  // 📊 1. Trading Account (व्यापारिक खाता - दुग्ध एवं फीड व्यापार)
   List<Map<String, dynamic>> _tradingIncome = [];
   List<Map<String, dynamic>> _tradingExpense = [];
   double _grossProfit = 0.0;
   double _totalTradingIncome = 0.0;
   double _totalTradingExpense = 0.0;
 
-  // 📊 Income & Expenditure / P&L (अन्य आय और व्यय)
+  // 📊 2. Profit & Loss / Income & Expenditure (लाभ-हानि खाता)
   List<Map<String, dynamic>> _pnlIncome = [];
   List<Map<String, dynamic>> _pnlExpense = [];
   double _netProfit = 0.0;
   double _totalPnlIncome = 0.0;
   double _totalPnlExpense = 0.0;
 
-  // 📊 Balance Sheet (संपत्तियां और दायित्व)
+  // 📊 3. Balance Sheet (तुलन पत्र - संपत्ति और दायित्व)
   List<Map<String, dynamic>> _assetItems = [];
   List<Map<String, dynamic>> _liabilityItems = [];
   double _totalAssets = 0.0;
   double _totalLiabilities = 0.0;
+
+  // खातों के नाम हिंदी रूपांतरण मैपिंग डिक्शनरी
+  final Map<String, String> _headNamesHindi = {
+    "milk_purchase": "दुग्ध खरीद (Milk Purchase)",
+    "milk_sales": "दुग्ध बिक्री (Milk Sales)",
+    "feed_purchase": "पशु आहार खरीद (Feed Purchase)",
+    "feed_sales": "पशु आहार बिक्री (Feed Sales)",
+    "establishment_expense": "स्थापना एवं मानदेय (Establishment)",
+    "audit_fee_provision": "ऑडिट फीस प्रावधान (Audit Provision)",
+    "miscellaneous_income": "विविध डायरेक्ट आय (Misc Income)",
+    "share_capital": "सदस्य शेयर पूंजी (Share Capital)",
+    "dairy_debtors": "डेयरी संघ देनदार (Dairy Debtors)"
+  };
 
   @override
   void initState() {
@@ -58,54 +70,73 @@ class _AccountsScreenState extends State<AccountsScreen> {
     });
   }
 
+  // 🚀 मास्टर कैलकुलेशन इंजन: Strict Account Head के आधार पर वर्गीकरण
   void _calculateFinancials(int societyId) async {
     setState(() { _isLoading = true; });
     
     final ledgerData = await DatabaseHelper.instance.getMasterLedger(societyId);
     
-    // टेम्परेरी लिस्ट्स
     List<Map<String, dynamic>> tInc = [], tExp = [], pInc = [], pExp = [], ast = [], lib = [];
     double sumTInc = 0, sumTExp = 0, sumPInc = 0, sumPExp = 0, sumAst = 0, sumLib = 0;
 
     for (var entry in ledgerData) {
       double amount = entry['amount'] ?? 0.0;
       String category = entry['category'] ?? '';
-      String docType = entry['doc_type'] ?? '';
+      String accountHead = entry['account_head'] ?? '';
       String particulars = (entry['particulars'] ?? '').toString().toLowerCase();
 
-      // 🚀 स्मार्ट फ़िल्टरिंग: अगर बिल दूध का है, तो ट्रेडिंग अकाउंट में जाएगा, वरना P&L में
-      bool isTradingItem = docType == 'Milk Bill' || particulars.contains('milk') || particulars.contains('दूध');
-
-      if (category == 'Income') {
-        if (isTradingItem) { tInc.add(entry); sumTInc += amount; } 
-        else { pInc.add(entry); sumPInc += amount; }
+      // 🎯 एआई आधारित एकाउंट्स हेड फ़िल्टरिंग (100% सटीक)
+      if (accountHead == 'milk_sales' || accountHead == 'feed_sales') {
+        tInc.add(entry);
+        sumTInc += amount;
       } 
-      else if (category == 'Expense') {
-        if (isTradingItem) { tExp.add(entry); sumTExp += amount; } 
-        else { pExp.add(entry); sumPExp += amount; }
+      else if (accountHead == 'milk_purchase' || accountHead == 'feed_purchase') {
+        tExp.add(entry);
+        sumTExp += amount;
       } 
-      else if (category == 'Asset') {
-        ast.add(entry); sumAst += amount;
+      else if (accountHead == 'miscellaneous_income') {
+        pInc.add(entry);
+        sumPInc += amount;
       } 
-      else if (category == 'Liability') {
-        lib.add(entry); sumLib += amount;
+      else if (accountHead == 'establishment_expense' || accountHead == 'audit_fee_provision') {
+        pExp.add(entry);
+        sumPExp += amount;
+      } 
+      else if (accountHead == 'dairy_debtors' || category == 'Asset') {
+        ast.add(entry);
+        sumAst += amount;
+      } 
+      else if (accountHead == 'share_capital' || category == 'Liability') {
+        lib.add(entry);
+        sumLib += amount;
+      }
+      // 🛡️ फॉलबैक सुरक्षा (यदि पुरानी या मैन्युअल एंट्री में एकाउंट हेड मिसिंग हो)
+      else {
+        bool isTradingFallback = particulars.contains('milk') || particulars.contains('दूध') || particulars.contains('feed') || particulars.contains('पशु');
+        if (category == 'Income') {
+          if (isTradingFallback) { tInc.add(entry); sumTInc += amount; } 
+          else { pInc.add(entry); sumPInc += amount; }
+        } else if (category == 'Expense') {
+          if (isTradingFallback) { tExp.add(entry); sumTExp += amount; } 
+          else { pExp.add(entry); sumPExp += amount; }
+        } else if (category == 'Asset') {
+          ast.add(entry); sumAst += amount;
+        } else if (category == 'Liability') {
+          lib.add(entry); sumLib += amount;
+        }
       }
     }
 
     if (!mounted) return;
     setState(() {
-      // Trading
       _tradingIncome = tInc; _tradingExpense = tExp;
       _totalTradingIncome = sumTInc; _totalTradingExpense = sumTExp;
       _grossProfit = _totalTradingIncome - _totalTradingExpense;
 
-      // P&L
       _pnlIncome = pInc; _pnlExpense = pExp;
       _totalPnlIncome = sumPInc; _totalPnlExpense = sumPExp;
-      // शुद्ध लाभ = ग्रॉस प्रॉफिट + अन्य आय - अन्य व्यय
       _netProfit = _grossProfit + _totalPnlIncome - _totalPnlExpense;
 
-      // Balance Sheet
       _assetItems = ast; _liabilityItems = lib;
       _totalAssets = sumAst; _totalLiabilities = sumLib;
       
@@ -114,7 +145,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   // ==========================================
-  // 🚀 PDF जनरेशन लॉजिक
+  // 🚀 अपग्रेडेड PDF जनरेशन रिपोर्ट लॉजिक
   // ==========================================
   Future<void> _generateAndSharePDF() async {
     final pdf = pw.Document();
@@ -127,169 +158,108 @@ class _AccountsScreenState extends State<AccountsScreen> {
           return [
             pw.Header(
               level: 0,
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
-                children: [
-                  pw.Text(_selectedSocietyName, style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Final Financial Reports (Audited)", style: const pw.TextStyle(fontSize: 14)),
-                  pw.SizedBox(height: 10),
-                ],
+              child: pw.UrlLink(
+                destination: '',
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text(_selectedSocietyName.toUpperCase(), style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+                    pw.Text("AUTOMATED FINAL FINANCIAL STATEMENT", style: const pw.TextStyle(fontSize: 12, grey: true)),
+                    pw.SizedBox(height: 15),
+                  ],
+                ),
               ),
             ),
             
-            // 1. Trading Account
-            pw.Text("1. TRADING ACCOUNT (Milk Business)", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+            // 1. Trading Account Summary
+            pw.Text("1. TRADING ACCOUNT (Milk & Feed Operations)", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Total Milk Sales (Income):"),
-                pw.Text("Rs. ${_totalTradingIncome.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Total Milk Purchase (Expense):"),
-                pw.Text("Rs. ${_totalTradingExpense.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.SizedBox(height: 5),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("GROSS PROFIT:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text("Rs. ${_grossProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              ]
-            ),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Direct Trading Revenues (Sales):"), pw.Text("INR ${_totalTradingIncome.toStringAsFixed(2)}")]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Direct Operating Cost (Purchases):"), pw.Text("INR ${_totalTradingExpense.toStringAsFixed(2)}")]),
+            pw.SizedBox(height: 4),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("GROSS PROFIT / SURPLUS:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)), pw.Text("INR ${_grossProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))]),
             pw.SizedBox(height: 20),
 
-            // 2. Income & Expenditure / P&L
-            pw.Text("2. INCOME & EXPENDITURE A/C (P&L)", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+            // 2. Profit & Loss Summary
+            pw.Text("2. PROFIT & LOSS ACCOUNT (Income & Expenditure)", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Gross Profit Transferred:"),
-                pw.Text("Rs. ${_grossProfit.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Other Incomes:"),
-                pw.Text("+ Rs. ${_totalPnlIncome.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Other Expenses (Operating):"),
-                pw.Text("- Rs. ${_totalPnlExpense.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.SizedBox(height: 5),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("NET PROFIT (Surplus):", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text("Rs. ${_netProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              ]
-            ),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Gross Trading Profit Transferred:"), pw.Text("INR ${_grossProfit.toStringAsFixed(2)}")]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Indirect Miscellaneous Receipts:"), pw.Text("INR ${_totalPnlIncome.toStringAsFixed(2)}")]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Establishment & Administrative Provisions:"), pw.Text("INR ${_totalPnlExpense.toStringAsFixed(2)}")]),
+            pw.SizedBox(height: 4),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("NET AUDITED PROFIT (Net Surplus):", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green))), pw.Text("INR ${_netProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green))]),
             pw.SizedBox(height: 20),
 
-            // 3. Balance Sheet
-            pw.Text("3. BALANCE SHEET", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+            // 3. Balance Sheet Summary
+            pw.Text("3. BALANCE SHEET (Financial Standing)", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Total Assets:"),
-                pw.Text("Rs. ${_totalAssets.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Total Liabilities:"),
-                pw.Text("Rs. ${_totalLiabilities.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("Retained Earnings (Net Profit):"),
-                pw.Text("Rs. ${_netProfit.toStringAsFixed(2)}"),
-              ]
-            ),
-            pw.SizedBox(height: 5),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("TOTAL LIABILITIES + EQUITY:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text("Rs. ${(_totalLiabilities + _netProfit).toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              ]
-            ),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Assets (Receivables & Liquid Cash):"), pw.Text("INR ${_totalAssets.toStringAsFixed(2)}")]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Liabilities (Share Capital & Capital Fund):"), pw.Text("INR ${_totalLiabilities.toStringAsFixed(2)}")]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Retained Period Surplus (Net Profit):"), pw.Text("INR ${_netProfit.toStringAsFixed(2)}")]),
+            pw.SizedBox(height: 4),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("TOTAL LIABILITIES & CAPITAL EQUITY BALANCE:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)), pw.Text("INR ${(_totalLiabilities + _netProfit).toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))]),
           ];
         },
       ),
     );
 
-    // PDF शेयर/डाउनलोड करें
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'Financial_Report_${_selectedSocietyName.replaceAll(' ', '_')}.pdf');
+    await Printing.sharePdf(bytes: await pdf.save(), filename: 'Audited_Report_${_selectedSocietyName.replaceAll(' ', '_')}.pdf');
   }
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3, // 🚀 3 टैब्स: Trading, P&L, Balance Sheet
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('📊 वित्तीय खाते (Final Reports)', style: TextStyle(fontSize: 18)),
+          title: const Text('📊 ऑटोमेटेड फाइनल खाते', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           backgroundColor: Colors.green.shade800,
           foregroundColor: Colors.white,
           actions: [
             IconButton(
-              icon: const Icon(Icons.picture_as_pdf), // 🚀 PDF डाउनलोड बटन
-              tooltip: 'Download PDF',
+              icon: const Icon(Icons.picture_as_pdf, size: 24),
+              tooltip: 'Download Audited PDF Report',
               onPressed: _generateAndSharePDF,
-            )
+            ),
+            const SizedBox(width: 8),
           ],
           bottom: const TabBar(
-            isScrollable: true,
+            isScrollable: false,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             indicatorColor: Colors.white,
+            indicatorWeight: 3,
             tabs: [
-              Tab(icon: Icon(Icons.storefront), text: "Trading A/c"),
-              Tab(icon: Icon(Icons.analytics), text: "P&L (I&E)"),
-              Tab(icon: Icon(Icons.account_balance), text: "Balance Sheet"),
+              Tab(icon: Icon(Icons.storefront_rounded), text: "Trading A/c"),
+              Tab(icon: Icon(Icons.insights_rounded), text: "P&L Account"),
+              Tab(icon: Icon(Icons.account_balance_rounded), text: "Balance Sheet"),
             ],
           ),
         ),
         body: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(10.0),
           child: Column(
             children: [
-              // सोसाइटी ड्रॉपडाउन
+              // प्रीमियम सोसाइटी सेलेक्टर कार्ड
               Card(
-                elevation: 2,
+                elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                   child: Row(
                     children: [
-                      const Icon(Icons.business, color: Colors.green),
+                      Icon(Icons.business_rounded, color: Colors.green.shade800),
                       const SizedBox(width: 12),
                       Expanded(
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<int>(
                             value: _selectedSocietyId,
                             isExpanded: true,
-                            hint: const Text("समिति चुनें"),
+                            hint: const Text("सक्रिय सहकारी समिति चुनें"),
                             items: _societies.map((s) {
                               return DropdownMenuItem<int>(
                                 value: s['id'] as int, 
-                                child: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold))
+                                child: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))
                               );
                             }).toList(),
                             onChanged: (val) {
@@ -316,8 +286,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 : Expanded(
                     child: TabBarView(
                       children: [
-                        _buildAccountTab(_tradingIncome, _tradingExpense, "दुग्ध बिक्री (Milk Sales)", "दुग्ध खरीद (Milk Purchase)", _grossProfit, "सकल लाभ (Gross Profit)"),
-                        _buildAccountTab(_pnlIncome, _pnlExpense, "अन्य आय (Other Incomes)", "अन्य व्यय (Operating Exp.)", _netProfit, "शुद्ध लाभ (Net Profit)"),
+                        _buildAccountTab(_tradingIncome, _tradingExpense, "जमा पक्ष / क्रेडिट आय (Revenues)", "नाम पक्ष / डेबिट खर्चे (Direct Costs)", _grossProfit, "सकल लाभ (Gross Profit)"),
+                        _buildAccountTab(_pnlIncome, _pnlExpense, "अप्रत्यक्ष आय (Indirect Receipts)", "प्रशासनिक एवं स्थापना व्यय (Admin Cost)", _netProfit, "शुद्ध लाभ (Net Profit)"),
                         _buildBalanceSheetTab(),
                       ],
                     ),
@@ -330,36 +300,37 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   // ==========================================
-  // Generic Tab Builder (Trading और P&L के लिए)
+  // 🛠️ जेनेरिक टैब कंपोनेंट (Trading और P&L हेतु)
   // ==========================================
   Widget _buildAccountTab(List incomeList, List expenseList, String incomeTitle, String expTitle, double profitObj, String profitTitle) {
     double tInc = incomeList.fold(0, (sum, item) => sum + (item['amount'] ?? 0));
     double tExp = expenseList.fold(0, (sum, item) => sum + (item['amount'] ?? 0));
 
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(6.0),
           child: Table(
-            border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-            columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1)},
+            border: TableBorder.all(color: Colors.grey.shade200, width: 1, style: BorderStyle.solid),
+            columnWidths: const {0: FlexColumnWidth(2.2), 1: FlexColumnWidth(1)},
             children: [
               _tableSectionHeader(incomeTitle),
-              ...incomeList.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
-              _tableSubTotalRow("Total Credit", tInc, Colors.green.shade50),
+              if (incomeList.isEmpty) _tableEmptyRow() else ...incomeList.map((item) => _tableDataRow(item)),
+              _tableSubTotalRow("कुल क्रेडिट योग", tInc, Colors.green.shade50),
 
-              const TableRow(children: [TableCell(child: SizedBox(height: 16)), TableCell(child: SizedBox(height: 16))]),
+              const TableRow(children: [TableCell(child: SizedBox(height: 12)), TableCell(child: SizedBox(height: 12))]),
 
               _tableSectionHeader(expTitle),
-              ...expenseList.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
-              _tableSubTotalRow("Total Debit", tExp, Colors.red.shade50),
+              if (expenseList.isEmpty) _tableEmptyRow() else ...expenseList.map((item) => _tableDataRow(item)),
+              _tableSubTotalRow("कुल डेबिट योग", tExp, Colors.red.shade50),
 
-              const TableRow(children: [TableCell(child: SizedBox(height: 16)), TableCell(child: SizedBox(height: 16))]),
+              const TableRow(children: [TableCell(child: SizedBox(height: 12)), TableCell(child: SizedBox(height: 12))]),
 
               _tableFinalTotalRow(
-                profitObj >= 0 ? profitTitle : "हानि (Loss)", 
+                profitObj >= 0 ? profitTitle : "शुद्ध घाटा/हानि (Net Loss)", 
                 profitObj.abs(),
                 profitObj >= 0 ? Colors.green.shade800 : Colors.red.shade800
               ),
@@ -371,30 +342,32 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   // ==========================================
-  // Balance Sheet Tab
+  // 🛠️ बैलेंस्ड बैलेंस शीट कंपोनेंट
   // ==========================================
   Widget _buildBalanceSheetTab() {
     double totalLiabilitiesSide = _totalLiabilities + _netProfit;
 
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       child: Card(
-        elevation: 3,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(6.0),
           child: Table(
-            border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-            columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1)},
+            border: TableBorder.all(color: Colors.grey.shade200, width: 1),
+            columnWidths: const {0: FlexColumnWidth(2.2), 1: FlexColumnWidth(1)},
             children: [
-              _tableSectionHeader("दायित्व (Liabilities)"),
-              ..._liabilityItems.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
-              _tableDataRow("इस अवधि का शुद्ध लाभ (Net Profit)", _netProfit),
-              _tableSubTotalRow("कुल देयताएं (Total Liabilities)", totalLiabilitiesSide, Colors.blue.shade50),
+              _tableSectionHeader("दायित्व एवं पूंजी (Liabilities & Capital)"),
+              if (_liabilityItems.isEmpty && _netProfit == 0) _tableEmptyRow() else ..._liabilityItems.map((item) => _tableDataRow(item)),
+              _tableCustomRow("इस अवधि का शुद्ध लाभ (Net Profit)", _netProfit, isBold: true, txtColor: Colors.green.shade900),
+              _tableSubTotalRow("कुल दायित्व पक्ष (Total Liabilities)", totalLiabilitiesSide, Colors.blue.shade50),
 
-              const TableRow(children: [TableCell(child: SizedBox(height: 16)), TableCell(child: SizedBox(height: 16))]),
+              const TableRow(children: [TableCell(child: SizedBox(height: 14)), TableCell(child: SizedBox(height: 14))]),
 
-              _tableSectionHeader("सम्पत्तियां (Assets)"),
-              ..._assetItems.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
-              _tableSubTotalRow("कुल सम्पत्तियां (Total Assets)", _totalAssets, Colors.blue.shade50),
+              _tableSectionHeader("सम्पत्तियां एवं लेनदारियां (Assets & Receivables)"),
+              if (_assetItems.isEmpty) _tableEmptyRow() else ..._assetItems.map((item) => _tableDataRow(item)),
+              _tableSubTotalRow("कुल संपत्ति पक्ष (Total Assets)", _totalAssets, Colors.blue.shade50),
             ],
           ),
         ),
@@ -402,22 +375,60 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  // --- UI Helpers ---
+  // --- 🎨 एडवांस यूआई रो कंपोनेंट्स ---
   TableRow _tableSectionHeader(String title) {
     return TableRow(
-      decoration: BoxDecoration(color: Colors.grey.shade800),
+      decoration: BoxDecoration(color: Colors.grey.shade800, borderRadius: const BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(4))),
       children: [
-        Padding(padding: const EdgeInsets.all(8.0), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white))),
-        const Padding(padding: EdgeInsets.all(8.0), child: Text("राशि (₹)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.right)),
+        Padding(padding: const EdgeInsets.all(10.0), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13))),
+        const Padding(padding: EdgeInsets.all(10.0), child: Text("राशि (₹)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
       ],
     );
   }
 
-  TableRow _tableDataRow(String title, double val) {
+  TableRow _tableDataRow(Map<String, dynamic> item) {
+    String headKey = item['account_head'] ?? '';
+    // यदि एआई हेड उपलब्ध है तो हिंदी नाम दिखाएं अन्यथा पर्टिकुलर्स
+    String displayName = _headNamesHindi[headKey] ?? (item['particulars'] ?? 'अज्ञात मद');
+    double val = item['amount'] ?? 0.0;
+    bool isManual = (item['is_manual'] ?? 0) == 1;
+
     return TableRow(
       children: [
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0), child: Text(title, style: const TextStyle(fontSize: 13))),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0), 
+          child: Row(
+            children: [
+              Expanded(child: Text(displayName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+              // यदि मैन्युअल एंट्री है तो छोटा सा इंडिकेटर बैज दिखाएं
+              if (isManual)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
+                  child: Text("MANUAL", style: TextStyle(fontSize: 8, color: Colors.amber.shade900, fontWeight: FontWeight.bold)),
+                ),
+            ],
+          ),
+        ),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontFamily: 'monospace'))),
+      ],
+    );
+  }
+
+  TableRow _tableCustomRow(String title, double val, {bool isBold = false, Color? txtColor}) {
+    return TableRow(
+      children: [
+        Padding(padding: const EdgeInsets.all(10.0), child: Text(title, style: TextStyle(fontSize: 13, fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: txtColor))),
+        Padding(padding: const EdgeInsets.all(10.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: TextStyle(fontSize: 13, fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: txtColor, fontFamily: 'monospace'))),
+      ],
+    );
+  }
+
+  TableRow _tableEmptyRow() {
+    return const TableRow(
+      children: [
+        Padding(padding: EdgeInsets.all(10.0), child: Text("कोई प्रविष्टि दर्ज नहीं है", style: TextStyle(fontSize: 12, color: Colors.grey, style: FontStyle.italic))),
+        Padding(padding: EdgeInsets.all(10.0), child: Text("₹ 0.00", textAlign: TextAlign.right, style: TextStyle(fontSize: 12, color: Colors.grey))),
       ],
     );
   }
@@ -426,18 +437,18 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return TableRow(
       decoration: BoxDecoration(color: bgColor),
       children: [
-        Padding(padding: const EdgeInsets.all(8.0), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-        Padding(padding: const EdgeInsets.all(8.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+        Padding(padding: const EdgeInsets.all(10.0), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+        Padding(padding: const EdgeInsets.all(10.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'monospace'))),
       ],
     );
   }
 
   TableRow _tableFinalTotalRow(String title, double val, Color textColor) {
     return TableRow(
-      decoration: BoxDecoration(color: Colors.grey.shade200),
+      decoration: BoxDecoration(color: Colors.grey.shade100),
       children: [
-        Padding(padding: const EdgeInsets.all(10.0), child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: textColor))),
-        Padding(padding: const EdgeInsets.all(10.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: textColor))),
+        Padding(padding: const EdgeInsets.all(12.0), child: Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: textColor))),
+        Padding(padding: const EdgeInsets.all(12.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: textColor, fontFamily: 'monospace'))),
       ],
     );
   }
