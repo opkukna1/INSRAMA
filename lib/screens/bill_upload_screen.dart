@@ -1,7 +1,9 @@
 // lib/screens/bill_upload_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:typed_data'; // 🚀 नया: विज़न इंजन के लिए बाइट्स हैंडलिंग
 import '../database/db_helper.dart'; 
 import '../services/ai_service.dart';
 
@@ -41,6 +43,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
     });
   }
 
+  // 🚀 अपग्रेडेड मेथड: मल्टीपल फाइल्स (PDF + इमेजेस) प्रोसेसिंग विज़न इंजन के साथ
   void _pickAndProcessMultipleDocuments() async {
     if (_selectedSocietyId == null) {
       _showSnackBar("कृपया पहले 'समिति प्रबंधन' स्क्रीन पर जाकर एक समिति जोड़ें।");
@@ -54,10 +57,11 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
     }
 
     try {
+      // 🌟 अपग्रेड: अब पीडीएफ के साथ-साथ कैमरे की खींची फोटो (JPG, PNG) भी सिलेक्ट कर सकते हैं
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         allowMultiple: true, 
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -86,31 +90,43 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 continue; 
               }
 
-              String extractedText = await AIService.extractTextFromPdf(file.path!);
+              // 🚀 विज़न अपग्रेड: फ़ाइल को डायरेक्ट बाइट्स में रीड करके माइम टाइप पता करना
+              final File ioFile = File(file.path!);
+              final Uint8List fileBytes = await ioFile.readAsBytes();
               
-              if (extractedText.trim().isEmpty) {
-                throw Exception("PDF में कोई टेक्स्ट नहीं मिला! (शायद यह इमेज PDF है)");
+              String ext = file.extension?.toLowerCase() ?? '';
+              String mimeType = 'application/pdf';
+              if (ext == 'jpg' || ext == 'jpeg') {
+                mimeType = 'image/jpeg';
+              } else if (ext == 'png') {
+                mimeType = 'image/png';
+              }
+
+              // पीडीएफ के केस में ही केवल नॉर्मल टेक्स्ट एक्सट्रैक्शन ट्रम्प कार्ड की तरह इस्तेमाल होगा
+              String extractedText = "";
+              if (ext == 'pdf') {
+                extractedText = await AIService.extractTextFromPdf(file.path!);
               }
               
-              // एआई ऑडिटर को कॉल करना
+              // 🤝 एआई ऑडिटर को कॉल करना (टेक्स्ट, विज़न बाइट्स और माइम टाइप के साथ)
               Map<String, dynamic> auditResult = await AIService.processDocumentWithAuditorAI(
-                documentText: extractedText,
+                documentText: extractedText.isNotEmpty ? extractedText : null,
+                fileBytes: fileBytes,
+                mimeType: mimeType,
                 apiKey: apiKey,
               );
 
-              // 🔍 डीबगिंग के लिए: टर्मिनल में दिखेगा कि AI ने क्या भेजा
+              // 🔍 टर्मिनल डीबगिंग
               print("DEBUG AI RESPONSE FOR ${file.name}: $auditResult");
 
               List<dynamic> ledgerEntries = auditResult['ledger_entries'] ?? [];
               List<dynamic> suspiciousNotes = auditResult['suspicious_notes'] ?? [];
 
-              // 🚀 फिक्स 1: अमाउंट और तारीख को सुरक्षित रूप से पार्स करके मास्टर लेज़र में सेव करना
+              // 🚀 फिक्स 1: अमाउंट, तारीख और 'Account Head' को सुरक्षित रूप से मास्टर लेज़र में सिंक करना
               for (var entry in ledgerEntries) {
-                // अमाउंट में से कोमा (,) हटाकर उसे डबल (double) में बदलना ताकि SQLite रिजेक्ट न करे
                 String amountStr = entry['amount']?.toString().replaceAll(',', '').trim() ?? '0';
                 double parsedAmount = double.tryParse(amountStr) ?? 0.0;
 
-                // तारीख का सही फॉर्मेट सुनिश्चित करना
                 String entryDate = entry['date']?.toString() ?? DateTime.now().toIso8601String().split('T')[0];
 
                 Map<String, dynamic> ledgerRow = {
@@ -120,14 +136,16 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                   'amount': parsedAmount,
                   'type': (entry['type']?.toString().toUpperCase() == 'CREDIT') ? 'CREDIT' : 'DEBIT', 
                   'category': entry['category']?.toString() ?? 'Expense', 
-                  'doc_type': entry['doc_type']?.toString() ?? 'Bill', 
+                  'doc_type': entry['doc_type']?.toString() ?? 'Other', 
                   'reference_no': entry['reference_no']?.toString() ?? '',
+                  'account_head': entry['account_head']?.toString() ?? 'establishment_expense', // 🌟 नया: 4-खातों की मैपिंग हेड
+                  'is_manual': 0, // 🌟 नया: 0 = AI द्वारा ऑटो-एक्सट्रैक्टेड एंट्री
                 };
                 
                 await DatabaseHelper.instance.insertLedgerEntry(ledgerRow);
               }
 
-              // संदिग्ध गड़बड़ियों को 'document_doubts' में सेव करना
+              // संदिग्ध गड़बड़ियों को 'document_doubts' में सुरक्षित सेव करना
               for (var note in suspiciousNotes) {
                 Map<String, dynamic> doubtRow = {
                   'society_id': _selectedSocietyId,
@@ -148,6 +166,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 });
               });
 
+              // रेट लिमिट से बचने के लिए छोटा सा डिले
               if (i < result.files.length - 1) {
                 await Future.delayed(const Duration(seconds: 2));
               }
@@ -180,7 +199,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('📂 एडवांस ERP डाक्यूमेंट्स प्रोसेसिंग'),
+        title: const Text('📂 एडवांस ERP डाक्यूमेंट्स Processing'),
         backgroundColor: Colors.green.shade700,
         foregroundColor: Colors.white,
       ),
@@ -231,7 +250,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _pickAndProcessMultipleDocuments,
                       icon: const Icon(Icons.analytics_outlined),
-                      label: const Text('फाइल्स (Bills, Vouchers, Statements) अपलोड करें', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      label: const Text('फाइल्स (PDF, Bills, Photos) अपलोड करें', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
                     ),
                   ),
