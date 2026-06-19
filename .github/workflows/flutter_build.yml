@@ -45,10 +45,14 @@ jobs:
           echo "flutter.compileSdkVersion=36" >> android/local.properties
           echo "flutter.targetSdkVersion=36" >> android/local.properties
 
+      # 🔐 4. नया मास्टर स्ट्रोक: GitHub Secrets से API Key उठाकर .env फ़ाइल बनाना
+      - name: Create .env file dynamically
+        run: echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+
       - name: Install dependencies
         run: flutter pub get
 
-      # 🚀 4. मास्टर स्ट्रोक: डाउनलोड हुए file_picker प्लगइन के सोर्स कोड में ही घुसकर वर्शन 36 कर देना (बिना Gradle को छेड़े)
+      # 🚀 5. डाउनलोड हुए file_picker प्लगइन के सोर्स कोड में ही घुसकर वर्शन 36 कर देना (बिना Gradle को छेड़े)
       - name: Patch file_picker and all Plugins to SDK 36
         run: |
           echo "Patching downloaded plugins to compileSdk 36..."
@@ -61,7 +65,7 @@ jobs:
       - name: Build Android APK
         run: flutter build apk --release
 
-      # 📦 5. सुपर-सर्च: APK चाहे जिस भी फोल्डर में बने, यह उसे ढूँढ कर निकाल लेगा
+      # 📦 6. सुपर-सर्च: APK चाहे जिस भी फोल्डर में बने, यह उसे ढूँढ कर निकाल लेगा
       - name: Upload Build Artifact (APK)
         uses: actions/upload-artifact@v4
         with:
