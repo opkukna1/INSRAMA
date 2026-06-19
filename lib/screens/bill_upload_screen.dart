@@ -13,7 +13,6 @@ class BillUploadScreen extends StatefulWidget {
 }
 
 class _BillUploadScreenState extends State<BillUploadScreen> {
-  // AI सर्विस में मॉडल 'gemini-3.1-flash-lite-preview' को परमानेंट लॉक कर दिया गया है
   final String _selectedModel = "gemini-3.1-flash-lite-preview"; 
   
   List<Map<String, dynamic>> _societies = [];
@@ -24,7 +23,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
   int _processedFiles = 0;
   String _currentFileName = "";
   
-  // प्रोसेस हुई फाइल्स की समरी दिखाने के लिए नया बैच डेटा लिस्ट
   List<Map<String, dynamic>> _processedBatchData = [];
 
   @override
@@ -56,7 +54,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
     }
 
     try {
-      // वित्तीय दस्तावेज (PDF) चुनने के लिए फाइल पिकर
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         allowMultiple: true, 
         type: FileType.custom,
@@ -81,62 +78,68 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
             });
 
             try {
-              // 🚀 मास्टर स्ट्रोक 1: फाइल का DNA (SHA-256 Hash) चेक करना ताकि डुप्लीकेट एंट्री न हो
               String fileHash = await AIService.getFileHash(file.path!);
               bool isDuplicate = await DatabaseHelper.instance.isFileAlreadyProcessed(fileHash);
               
               if (isDuplicate) {
-                print("${file.name} पहले ही अपलोड हो चुकी है! इसे स्किप कर रहे हैं।");
                 _showSnackBar("स्किप किया: ${file.name} पहले ही प्रोसेस हो चुकी है।");
-                continue; // लूप में अगली फाइल पर बढ़ें
+                continue; 
               }
 
-              // PDF से टेक्स्ट निकालना
               String extractedText = await AIService.extractTextFromPdf(file.path!);
               
               if (extractedText.trim().isEmpty) {
-                throw Exception("PDF में कोई टेक्स्ट नहीं मिला! (शायद यह बिना स्कैन किया इमेज PDF है)");
+                throw Exception("PDF में कोई टेक्स्ट नहीं मिला! (शायद यह इमेज PDF है)");
               }
               
-              // 🚀 मास्टर स्ट्रोक 2: नए AI ऑडिटर को कॉल करना जो लेज़र एंट्री और संदिग्ध नोट्स दोनों देगा
+              // एआई ऑडिटर को कॉल करना
               Map<String, dynamic> auditResult = await AIService.processDocumentWithAuditorAI(
                 documentText: extractedText,
                 apiKey: apiKey,
               );
 
+              // 🔍 डीबगिंग के लिए: टर्मिनल में दिखेगा कि AI ने क्या भेजा
+              print("DEBUG AI RESPONSE FOR ${file.name}: $auditResult");
+
               List<dynamic> ledgerEntries = auditResult['ledger_entries'] ?? [];
               List<dynamic> suspiciousNotes = auditResult['suspicious_notes'] ?? [];
 
-              // 🚀 मास्टर स्ट्रोक 3: सभी एकाउंटिंग एंट्रीज को मास्टर लेज़र टेबल में सेव करना
+              // 🚀 फिक्स 1: अमाउंट और तारीख को सुरक्षित रूप से पार्स करके मास्टर लेज़र में सेव करना
               for (var entry in ledgerEntries) {
+                // अमाउंट में से कोमा (,) हटाकर उसे डबल (double) में बदलना ताकि SQLite रिजेक्ट न करे
+                String amountStr = entry['amount']?.toString().replaceAll(',', '').trim() ?? '0';
+                double parsedAmount = double.tryParse(amountStr) ?? 0.0;
+
+                // तारीख का सही फॉर्मेट सुनिश्चित करना
+                String entryDate = entry['date']?.toString() ?? DateTime.now().toIso8601String().split('T')[0];
+
                 Map<String, dynamic> ledgerRow = {
                   'society_id': _selectedSocietyId,
-                  'date': entry['date'],
-                  'particulars': entry['particulars'],
-                  'amount': entry['amount'],
-                  'type': entry['type'], // DEBIT या CREDIT
-                  'category': entry['category'], // Income, Expense, Asset, Liability
-                  'doc_type': entry['doc_type'], // Voucher, Bill, etc.
-                  'reference_no': entry['reference_no'] ?? '',
+                  'date': entryDate,
+                  'particulars': entry['particulars']?.toString() ?? 'विवरण उपलब्ध नहीं',
+                  'amount': parsedAmount,
+                  'type': (entry['type']?.toString().toUpperCase() == 'CREDIT') ? 'CREDIT' : 'DEBIT', 
+                  'category': entry['category']?.toString() ?? 'Expense', 
+                  'doc_type': entry['doc_type']?.toString() ?? 'Bill', 
+                  'reference_no': entry['reference_no']?.toString() ?? '',
                 };
+                
                 await DatabaseHelper.instance.insertLedgerEntry(ledgerRow);
               }
 
-              // 🚀 मास्टर स्ट्रोक 4: खोजी गई संदिग्ध गड़बड़ियों (हिंदी नोट्स) को 'document_doubts' टेबल में सेव करना
+              // संदिग्ध गड़बड़ियों को 'document_doubts' में सेव करना
               for (var note in suspiciousNotes) {
                 Map<String, dynamic> doubtRow = {
                   'society_id': _selectedSocietyId,
                   'file_name': file.name,
-                  'doubt_text': note.toString(), // शुद्ध हिंदी अलर्ट
+                  'doubt_text': note.toString(), 
                   'created_at': DateTime.now().toIso8601String(),
                 };
                 await DatabaseHelper.instance.insertDocumentDoubt(doubtRow);
               }
 
-              // 🚀 मास्टर स्ट्रोक 5: फाइल को 'Processed' मार्क करना ताकि भविष्य में दोबारा अपलोड न हो सके
               await DatabaseHelper.instance.markFileAsProcessed(_selectedSocietyId!, fileHash, file.name);
 
-              // स्क्रीन पर समरी दिखाने के लिए स्टेट अपडेट करना
               setState(() {
                 _processedBatchData.add({
                   'file_name': file.name,
@@ -145,13 +148,12 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 });
               });
 
-              // API Rate-limiting से बचने के लिए छोटा सा डिले
               if (i < result.files.length - 1) {
                 await Future.delayed(const Duration(seconds: 2));
               }
 
             } catch (e) {
-              print("${file.name} में एरer: $e");
+              print("${file.name} में एरर: $e");
               _showSnackBar("त्रुटि (${file.name}): $e"); 
             }
           }
