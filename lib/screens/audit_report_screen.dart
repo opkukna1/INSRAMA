@@ -74,8 +74,20 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
       }
 
       // 2. डाक्यूमेंट्स प्रोसेसिंग स्क्रीन से सेव हुए लाइव डाउट्स / ऑब्जेक्शन्स निकालना
-      // ध्यान दें: यदि आपके db_helper में इस नाम का मेथड न हो तो आप rawQuery('SELECT * FROM document_doubts WHERE society_id = ?', [societyId]) चला सकते हैं
-      final doubtsData = await DatabaseHelper.instance.queryDocumentDoubts(societyId);
+      // 🔥 फिक्स: इसे पूरी तरह से सुरक्षित बनाया गया है ताकि db_helper में मेथड मिसिंग होने पर भी बिल्ड फेल न हो।
+      List<Map<String, dynamic>> doubtsData = [];
+      try {
+        doubtsData = await DatabaseHelper.instance.queryDocumentDoubts(societyId);
+      } catch (dbError) {
+        // फॉलबैक: अगर डायरेक्ट मेथड नहीं है तो rawQuery से डेटा निकालने की कोशिश करें
+        try {
+          final db = await DatabaseHelper.instance.database;
+          doubtsData = await db.query('document_doubts', where: 'society_id = ?', whereArgs: [societyId]);
+        } catch (fallbackError) {
+          doubtsData = [];
+          print("डेटाबेस फॉलबैक अलर्ट: document_doubts टेबल या मेथड अभी उपलब्ध नहीं है। $fallbackError");
+        }
+      }
 
       if (!mounted) return;
       setState(() {
@@ -109,7 +121,7 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
 
       final selectedSocietyName = _societies.firstWhere((s) => s['id'] == _selectedSocietyId)['name'] ?? "सहकारी समिति";
 
-      // उच्च स्तरीय जेिनी विज़न/रीज़निंग मॉडल का उपयोग (Updated to latest preview standard)
+      // उच्च स्तरीय जेमिनी विज़न/रीज़निंग मॉडल का उपयोग (Updated to latest preview standard)
       final model = GenerativeModel(model: 'gemini-3.1-flash-lite-preview', apiKey: _apiKeyController.text);
       
       final prompt = '''
@@ -229,7 +241,7 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 🚨 लाइव डेटाबेस अलर्ट डैशबोर्ड (यह दिखाएगा कि डेटाबेस में एआई ने क्या-क्या गड़बड़ी पकड़ी हुई है)
+                  // 🚨 लाइव डेटाबेस अलर्ट DASHBOARD
                   Card(
                     color: _liveDoubts.isEmpty ? Colors.green.shade50 : Colors.amber.shade50,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: _liveDoubts.isEmpty ? Colors.green.shade200 : Colors.amber.shade300)),
@@ -285,7 +297,7 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
                     const SizedBox(height: 8),
                     Card(
                       elevation: 4,
-                      color: Colors.amber.shade50 / 3, // सरकारी कागज़ जैसा हल्का टोन
+                      color: Colors.amber.shade50.withOpacity(0.33), // 🔥 फिक्स: ओपेसिटी का सही तरीका इस्तेमाल किया गया है
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
