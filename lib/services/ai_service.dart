@@ -1,87 +1,112 @@
+// lib/services/ai_service.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart'; // PDF रीड करने के लिए
+import 'package:syncfusion_flutter_pdf/pdf.dart'; 
+import 'package:crypto/crypto.dart'; // 🚀 नया: फाइल का यूनीक Hash (DNA) निकालने के लिए
 
 class AIService {
   
   // ==========================================
-  // 1. PDF से टेक्स्ट निकालने का असली कोड
+  // 1. PDF से टेक्स्ट निकालने का कोड
   // ==========================================
   static Future<String> extractTextFromPdf(String path) async {
     try {
-      // PDF फाइल को लोड करें
       final File file = File(path);
       final List<int> bytes = await file.readAsBytes();
       final PdfDocument document = PdfDocument(inputBytes: bytes);
-
-      // टेक्स्ट एक्सट्रेक्ट करें
       String extractedText = PdfTextExtractor(document).extractText();
-      
-      // मेमोरी फ्री करने के लिए डॉक्यूमेंट क्लोज करें
       document.dispose();
-
       return extractedText;
     } catch (e) {
       debugPrint("PDF Extraction Error: $e");
-      return ""; // अगर कोई दिक्कत आए तो खाली स्ट्रिंग भेजेगा
+      return ""; 
     }
   }
 
   // ==========================================
-  // 2. बिल प्रोसेसिंग (Gemini AI से JSON निकालना)
+  // 🚀 2. फाइल का SHA-256 हैश निकालना (डुप्लीकेट रोकने के लिए)
   // ==========================================
-  static Future<Map<String, dynamic>> processBillWithGemini({
-    required String pdfText,
+  static Future<String> getFileHash(String filePath) async {
+    final file = File(filePath);
+    final bytes = await file.readAsBytes();
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  // ==========================================
+  // 🚀 3. मास्टर AI मुनीम + ऑडिटर (डेटा एक्सट्रैक्शन और संदिग्ध गड़बड़ियां)
+  // ==========================================
+  static Future<Map<String, dynamic>> processDocumentWithAuditorAI({
+    required String documentText,
     required String apiKey,
-    // पुराने कोड को सपोर्ट करने के लिए पैरामीटर रखा है, पर इस्तेमाल अपना फिक्स मॉडल ही होगा
-    String? modelName, 
   }) async {
     
-    // 🔥 यहाँ आपका बताया हुआ मॉडल 'gemini-3.1-flash-lite-preview' फिक्स कर दिया है
+    // 🔥 मॉडल को 'gemini-3.1-flash-lite-preview' पर फिक्स किया गया है
     final model = GenerativeModel(
       model: 'gemini-3.1-flash-lite-preview', 
       apiKey: apiKey,
     );
 
-    // AI को सख्त निर्देश कि सिर्फ JSON दे
+    // AI को सख्त निर्देश कि वो मुनीम और ऑडिटर दोनों का रोल निभाए
     final prompt = """
-    You are an expert data extraction AI. Analyze the following milk society bill text in Hindi/English and extract the data into a strict JSON format.
-    Return ONLY valid JSON. Do not include markdown formatting like ```json.
+    You are an Elite Forensic Accountant and Chartered Auditor for a rural cooperative society ERP system called "INS Rama".
+    Analyze the given text which can be a Milk Bill, Bank Statement, Cash/Expense Voucher, Stock Register, or Minutes of Meeting (मीटिंग की कार्यवाही).
 
-    Required fields in JSON:
-    - bill_no (String)
-    - start_date (String: DD-MM-YYYY format)
-    - end_date (String: DD-MM-YYYY format)
-    - total_milk (double: total milk volume)
-    - milk_payment (double: main payment amount)
-    - head_load (double, default 0.0)
-    - overhead (double, default 0.0)
-    - ghee_deduction (double, default 0.0)
-    - cattle_feed_deduction (double, default 0.0)
+    Extract financial entries and simultaneously audit the text for any anomalies, doubts, discrepancies, missing information, or suspicious patterns.
 
-    Bill Text:
-    $pdfText
+    Return ONLY a single valid JSON object. Do NOT wrap the response in markdown like ```json or ```. 
+
+    The JSON object MUST have exactly these two keys:
+    1. "ledger_entries": A JSON array of transaction objects.
+    2. "suspicious_notes": A JSON array of strings containing audit doubts or suspicious flags written in CLEAR HINDI language.
+
+    --- Rules for "ledger_entries" ---
+    Each transaction object inside the array must have:
+    - date (String: DD-MM-YYYY format. If date is missing, use current date or best estimate)
+    - particulars (String: Clear description in English or Hinglish)
+    - amount (double: absolute numeric value)
+    - type (String: strictly "DEBIT" or "CREDIT")
+    - category (String: strictly one of "Income", "Expense", "Asset", "Liability")
+    - doc_type (String: strictly one of "Milk Bill", "Voucher", "Bank Statement", "Minutes of Meeting", "Stock Register", "Other")
+
+    Accounting Guide:
+    - Money coming IN / Revenues / Incomes -> CREDIT, Income
+    - Money going OUT / Expenses / Purchases / Deductions -> DEBIT, Expense
+    - Cash withdrawals from bank -> DEBIT Cash (Asset), CREDIT Bank (Asset)
+    - For Minutes of Meeting: If financial resolutions/grants/penalties are passed, create a ledger entry for estimated value.
+
+    --- Rules for "suspicious_notes" ---
+    Analyze the document for internal contradictions, high-risk items, or structural doubts. Write your findings as a list of strings strictly in HINDI.
+    Look for:
+    - Missing signatures or invoice numbers mentioned in text.
+    - Large cash transactions mentioned instead of bank transfers.
+    - Mathematical mismatch in totals or deductions.
+    - In Minutes of Meetings, note down if any member raised a protest, or if any expenditure was approved without proper quotation or look unusual.
+    - If everything looks perfectly fine, return an empty array [].
+
+    Document Text to Analyze:
+    $documentText
     """;
 
     final response = await model.generateContent([Content.text(prompt)]);
     String responseText = response.text ?? "{}";
 
-    // अगर AI गलती से ```json लगा दे, तो उसे साफ़ करना
+    // क्लीनिंग
     responseText = responseText.replaceAll('```json', '').replaceAll('```', '').trim();
 
-    // JSON को Map में बदलकर रिटर्न करना
     try {
-      return jsonDecode(responseText);
+      Map<String, dynamic> parsedResult = jsonDecode(responseText);
+      return parsedResult;
     } catch (e) {
-      throw Exception("AI ने सही JSON डेटा नहीं दिया: $e");
+      throw Exception("AI ने सही ऑडिटिंग फॉर्मेट (JSON) में रिपॉन्स नहीं दिया: $e");
     }
   }
 
   // ==========================================
-  // 3. ACCOUNTING INSIGHT (हमारा नया AI मेंटर कोड)
+  // 4. ACCOUNTING INSIGHT (वही पुराना कोड)
   // ==========================================
   static Future<String> generateAccountingInsight({
     required String societyName,
@@ -96,7 +121,6 @@ class AIService {
         return "Error: AI Auditor is currently sleeping. (API Key missing)";
       }
 
-      // 🔥 यहाँ भी आपका बताया हुआ 'gemini-3.1-flash-lite-preview' फिक्स कर दिया है
       final model = GenerativeModel(
         model: 'gemini-3.1-flash-lite-preview', 
         apiKey: apiKey,
@@ -104,8 +128,7 @@ class AIService {
 
       final prompt = """
       You are an elite Milk Accounting Auditor and Business Mentor for a society accounting platform called "INS Rama".
-
-      Your job is to analyze the society's financial data and provide a sharp, practical accounting insight.
+      Analyze the society's financial data and provide a sharp, practical accounting insight.
 
       Society Performance Data:
       - Society Name: $societyName
@@ -114,23 +137,11 @@ class AIService {
       - Total Payment Earned: ₹${milkPayment.toStringAsFixed(2)}
       - Total Deductions (Ghee, Feed, etc.): ₹${totalDeductions.toStringAsFixed(2)}
 
-      Instructions:
-      1. Start with a short professional headline.
-      2. Calculate the Net Income (Payment - Deductions).
-      3. Identify if deductions are high.
-      4. Provide a **3-step practical improvement strategy**.
-      5. Give one **smart accounting tip**.
-      6. End with a short motivating line.
-
-      Rules:
-      - Use Markdown formatting.
-      - Keep response under 180 words.
-      - Write in natural Hinglish.
+      Instructions: Use Markdown formatting. Keep under 180 words. Write in natural Hinglish.
       """;
 
       final response = await model.generateContent([Content.text(prompt)]);
       return response.text ?? "We couldn't analyze the data right now.";
-      
     } catch (e) {
       debugPrint("Gemini AI Error: $e");
       return "🚨 AI Analysis Error: Could not generate insight at the moment.";
