@@ -4,7 +4,8 @@ import '../database/db_helper.dart';
 import 'society_management_screen.dart';
 import 'bill_upload_screen.dart';
 import 'accounts_screen.dart';
-import 'audit_report_screen.dart'; // ऑडिट रिपोर्ट स्क्रीन का इम्पोर्ट
+import 'audit_report_screen.dart'; 
+import 'master_ledger_screen.dart'; // 🚀 न्यू: मास्टर लेज़र स्क्रीन भी जोड़ दी
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,7 +23,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadDashboardStats();
   }
 
-  // ऐप खुलते ही या रीफ्रेश होने पर लोकल DB से पंजीकृत समितियों की संख्या गिनना
   void _loadDashboardStats() async {
     final societies = await DatabaseHelper.instance.queryAllSocieties();
     setState(() {
@@ -33,165 +33,252 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50, // प्रीमियम लाइट बैकग्राउंड
       appBar: AppBar(
-        title: const Text('🥛 INS Rama - मुख्य डैशबोर्ड'),
-        backgroundColor: Colors.green.shade700,
+        title: const Text(
+          'INS RAMA ERP',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 20),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.green.shade800,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDashboardStats, // डेटा रीफ्रेश करने के लिए बटन
-          )
+            icon: const Icon(Icons.refresh_rounded, size: 26),
+            onPressed: _loadDashboardStats,
+          ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. स्वागत संदेश और क्विक स्टेट्स कार्ड
-            Card(
-              color: Colors.green.shade50,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.green.shade200),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. 🚀 प्रीमियम मिनिमलिस्टिक स्टेट्स बैनर (बिना किसी ट्रेडिशनल ग्रीट के)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green.shade800, Colors.green.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.shadowColor.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    )
+                  ],
+                ),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: Colors.green.shade700,
-                      child: const Icon(Icons.analytics, color: Colors.white, size: 30),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'OPERATIONAL OVERVIEW',
+                          style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'सक्रिय दुग्ध समितियां',
+                          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'राम राम सा 🙏',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'लोकल डेटाबेेस में कुल पंजीकृत समितियां: $_societyCount',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                          ),
-                        ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$_societyCount Active',
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            
-            const Text(
-              '🛠️ मुख्य टूल्स और फीचर्स:',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 28),
+              
+              const Text(
+                'SYSTEM CORE MODULES',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.blueGrey, letterSpacing: 1.2),
+              ),
+              const SizedBox(height: 14),
 
-            // 2. ग्रिड मेनू नेविगेशन के लिए
-            Expanded(
-              child: GridView.count(
+              // 2. 🚀 न्यू एब्सट्रैक्ट ग्रिड लेआउट (5 स्क्रीन के लिए परफेक्ट सेटिंग)
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                childAspectRatio: 1.1, // कार्ड्स का प्रोपोर्शन सेट करने के लिए
                 children: [
-                  _buildMenuCard(
+                  _buildPremiumMenuCard(
                     context,
-                    title: 'समिति प्रबंधन\n(Manage)',
-                    icon: Icons.business,
-                    color: Colors.blue.shade700,
+                    title: 'समिति प्रबंधन',
+                    subtitle: 'Societies Registry',
+                    icon: Icons.business_center_rounded,
+                    gradientColors: [Colors.indigo.shade700, Colors.indigo.shade500],
                     targetScreen: const SocietyManagementScreen(),
                   ),
-                  _buildMenuCard(
+                  _buildPremiumMenuCard(
                     context,
-                    title: 'AI बिल प्रोसेसिंग\n(Upload PDFs)',
-                    icon: Icons.picture_as_pdf,
-                    color: Colors.orange.shade800,
+                    title: 'AI डाक्यूमेंट्स प्रोसेसिंग',
+                    subtitle: 'Smart File Audit',
+                    icon: Icons.auto_awesome_rounded,
+                    gradientColors: [Colors.amber.shade900, Colors.orange.shade600],
                     targetScreen: const BillUploadScreen(),
                   ),
-                  _buildMenuCard(
+                  _buildPremiumMenuCard(
                     context,
-                    title: 'लेजर एवं खाते\n(Accounts)',
-                    icon: Icons.calculate,
-                    color: Colors.purple.shade700,
-                    targetScreen: const AccountsScreen(),
+                    title: 'मास्टर लेज़र ग्रिड',
+                    subtitle: 'In-App Excel Sheet',
+                    icon: Icons.table_chart_rounded,
+                    gradientColors: [Colors.teal.shade700, Colors.teal.shade500],
+                    targetScreen: const MasterLedgerScreen(),
                   ),
-                  _buildMenuCard(
+                  _buildPremiumMenuCard(
                     context,
-                    title: 'ऑडिट रिपोर्ट्स\n(AI Reports)',
-                    icon: Icons.assignment_turned_in,
-                    color: Colors.teal.shade700,
-                    targetScreen: const AuditReportScreen(),
+                    title: 'ऑटोमेटेड फाइनल खाते',
+                    subtitle: 'Dynamic P&L & BS',
+                    icon: Icons.analytics_rounded,
+                    gradientColors: [Colors.purple.shade700, Colors.purple.shade500],
+                    targetScreen: const AccountsScreen(),
                   ),
                 ],
               ),
-            ),
-          ],
+              
+              const SizedBox(height: 14),
+              
+              // 5वां कार्ड फुल विड्थ (ताकि लेआउट अनबैलेंस न दिखे और वीआईपी फील दे)
+              _buildPremiumMenuCard(
+                context,
+                title: 'फॉरेंसिक ऑडिट रिपोर्ट्स (AI Alerts)',
+                subtitle: 'AI द्वारा पकड़ी गई संदिग्ध वित्तीय हेराफेरी और कमियां देखें',
+                icon: Icons.gavel_rounded,
+                gradientColors: [Colors.red.shade800, Colors.red.shade600],
+                targetScreen: const AuditReportScreen(),
+                isFullWidth: true,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // मेनू कार्ड बनाने का कस्टमाइज्ड विजेट
-  Widget _buildMenuCard(
+  // 🚀 अल्टीमेट प्रीमियम कार्ड विजेट डिज़ाइन
+  Widget _buildPremiumMenuCard(
     BuildContext context, {
     required String title,
+    required String subtitle,
     required IconData icon,
-    required Color color,
+    required List<Color> gradientColors,
     required Widget targetScreen,
+    bool isFullWidth = false,
   }) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context, 
           MaterialPageRoute(builder: (context) => targetScreen)
-        ).then((_) {
-          // जब यूजर किसी स्क्रीन से बैक दबाकर वापस होम पर आए, तो स्टेट्स दोबारा लोड करें
-          _loadDashboardStats();
-        });
+        ).then((_) => _loadDashboardStats());
       },
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            gradient: LinearGradient(
-              // 🔥 फिक्स: यहाँ नए फ्लटर के अनुसार 'withOpacity(0.85)' को बदलकर 'withValues(alpha: 0.85)' किया गया है
-              colors: [color.withValues(alpha: 0.85), color],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+      splashColor: gradientColors[0].withValues(alpha: 0.3),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: isFullWidth ? double.infinity : null,
+        height: isFullWidth ? 95 : null,
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 40, color: Colors.white),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white, 
-                    fontWeight: FontWeight.bold, 
-                    fontSize: 14,
-                    height: 1.3
-                  ),
-                ),
-              ],
-            ),
-          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: gradientColors[0].withValues(alpha: 0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-      ),
+        child: isFullWidth
+            ? Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    child: Icon(icon, size: 28, color: Colors.white),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                        const SizedBox(height: 2),
+                        Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.between,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon, size: 24, color: Colors.white),
+                      ),
+                      const Icon(Icons.north_east_rounded, color: Colors.white60, size: 18),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+        ),
     );
   }
 }
