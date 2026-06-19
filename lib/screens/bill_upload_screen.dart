@@ -1,6 +1,7 @@
 // lib/screens/bill_upload_screen.dart
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // 🚀 .env के लिए इम्पोर्ट जोड़ा
 import '../database/db_helper.dart'; 
 import '../services/ai_service.dart';
 
@@ -12,9 +13,8 @@ class BillUploadScreen extends StatefulWidget {
 }
 
 class _BillUploadScreenState extends State<BillUploadScreen> {
-  final _apiKeyController = TextEditingController();
-  
-  String _selectedModel = "gemini-1.5-flash-lite-preview"; 
+  // 🚀 फिक्स: _apiKeyController को यहाँ से हटा दिया है
+  String _selectedModel = "gemini-3.1-flash-lite-preview"; // आपका पसंदीदा मॉडल
   
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
@@ -47,8 +47,11 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
       _showSnackBar("कृपया पहले 'समिति प्रबंधन' स्क्रीन पर जाकर एक समिति जोड़ें।");
       return;
     }
-    if (_apiKeyController.text.isEmpty) {
-      _showSnackBar("कृपया प्रोसेसिंग के लिए Gemini API Key दर्ज करें।");
+
+    // 🚀 फिक्स: अब API Key सीधे .env फ़ाइल से उठाई जाएगी
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+    if (apiKey.isEmpty) {
+      _showSnackBar("त्रुटि: .env फ़ाइल में GEMINI_API_KEY नहीं मिली।");
       return;
     }
 
@@ -77,22 +80,19 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
             });
 
             try {
-              // 1. PDF से टेक्स्ट निकालें
               String extractedText = await AIService.extractTextFromPdf(file.path!);
               
-              // 🔥 नया चेक: अगर PDF खाली है या स्कैन की हुई फोटो है
               if (extractedText.trim().isEmpty) {
                 throw Exception("PDF में कोई टेक्स्ट नहीं मिला! (क्या यह स्कैन की हुई फोटो है?)");
               }
               
-              // 2. AI से प्रोसेस कराएं
+              // 🚀 .env वाली apiKey यहाँ पास कर दी
               Map<String, dynamic> aiResult = await AIService.processBillWithGemini(
                 pdfText: extractedText,
-                apiKey: _apiKeyController.text,
+                apiKey: apiKey, 
                 modelName: _selectedModel,
               );
 
-              // 3. डेटाबेस के लिए डेटा तैयार करें
               Map<String, dynamic> billRow = {
                 'society_id': _selectedSocietyId,
                 'bill_no': aiResult['bill_no'],
@@ -106,29 +106,24 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 'cattle_feed_deduction': aiResult['cattle_feed_deduction'] ?? 0.0,
               };
 
-              // 4. डेटाबेस में सेव करें
               await DatabaseHelper.instance.insertMilkBill(billRow);
 
               setState(() {
                 _processedBatchData.add(aiResult);
               });
 
-              // API की लिमिट से बचने के लिए 3 सेकंड का ब्रेक
               if (i < result.files.length - 1) {
                 await Future.delayed(const Duration(seconds: 3));
               }
 
             } catch (e) {
               print("${file.name} में एरर: $e");
-              // 🚀 यहाँ अब आपको स्क्रीन पर असली एरर दिखेगा!
               _showSnackBar("त्रुटि (${file.name}): $e"); 
             }
           }
         }
 
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() { _isLoading = false; });
 
         if (_processedBatchData.isNotEmpty) {
            _showSnackBar("🎉 कुल $_totalFiles में से ${_processedBatchData.length} बिल सफलतापूर्वक प्रोसेस हो गए!");
@@ -142,9 +137,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 4))
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -164,16 +157,9 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 children: [
                   const CircularProgressIndicator(color: Colors.green),
                   const SizedBox(height: 24),
-                  Text(
-                    "प्रोसेसिंग चल रही है... ($_processedFiles/$_totalFiles)", 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)
-                  ),
+                  Text("प्रोसेसिंग चल रही है... ($_processedFiles/$_totalFiles)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                   const SizedBox(height: 8),
-                  Text(
-                    "वर्तमान फ़ाइल: $_currentFileName", 
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text("वर्तमान फ़ाइल: $_currentFileName", style: const TextStyle(color: Colors.grey, fontSize: 14), textAlign: TextAlign.center),
                 ],
               ),
             )
@@ -181,20 +167,15 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('🔑 एआई कॉन्फ़िगरेशन (Admin Setup):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _apiKeyController,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Gemini API Key दर्ज करें', border: OutlineInputBorder()),
-                  ),
+                  const Text('⚙️ एआई कॉन्फ़िगरेशन:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 8),
                   
+                  // 🚀 यहाँ से TextField हटा दिया गया है, सिर्फ मॉडल ड्रॉपडाउन बचेगा
                   DropdownButtonFormField<String>(
                     value: _selectedModel,
                     decoration: const InputDecoration(border: OutlineInputBorder(), labelText: "Model Name"),
                     items: [
-                      "gemini-1.5-flash-lite-preview",
+                      "gemini-3.1-flash-lite-preview",
                       "gemini-1.5-flash", 
                       "gemini-1.5-pro"
                     ].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
@@ -264,11 +245,5 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
             ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _apiKeyController.dispose();
-    super.dispose();
   }
 }
