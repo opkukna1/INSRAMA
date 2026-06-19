@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart'; 
-import 'package:crypto/crypto.dart'; // 🚀 नया: फाइल का यूनीक Hash (DNA) निकालने के लिए
+import 'package:crypto/crypto.dart'; 
 
 class AIService {
   
@@ -27,7 +27,7 @@ class AIService {
   }
 
   // ==========================================
-  // 🚀 2. फाइल का SHA-256 हैश निकालना (डुप्लीकेट रोकने के लिए)
+  // 2. फाइल का SHA-256 हैश निकालना (डुप्लीकेट रोकने के लिए)
   // ==========================================
   static Future<String> getFileHash(String filePath) async {
     final file = File(filePath);
@@ -44,20 +44,23 @@ class AIService {
     required String apiKey,
   }) async {
     
-    // 🔥 मॉडल को 'gemini-3.1-flash-lite-preview' पर फिक्स किया गया है
+    // 🚀 फिक्स 1: GenerationConfig का उपयोग करके एआई को सिर्फ और सिर्फ शुद्ध JSON देने के लिए मजबूर किया
     final model = GenerativeModel(
       model: 'gemini-3.1-flash-lite-preview', 
       apiKey: apiKey,
+      generationConfig: GenerationConfig(
+        responseMimeType: 'application/json', // अब जेमिनी सिर्फ वैलिड JSON ही आउटपुट करेगा
+      ),
     );
 
-    // AI को सख्त निर्देश कि वो मुनीम और ऑडिटर दोनों का रोल निभाए
+    // 🚀 फिक्स 2: प्रॉम्प्ट को री-डिजाइन किया गया ताकि 'ledger_entries' बनाना अनिवार्य (MANDATORY) हो जाए
     final prompt = """
-    You are an Elite Forensic Accountant and Chartered Auditor for a rural cooperative society ERP system called "INS Rama".
-    Analyze the given text which can be a Milk Bill, Bank Statement, Cash/Expense Voucher, Stock Register, or Minutes of Meeting (मीटिंग की कार्यवाही).
+    You are an Elite Forensic Accountant and Chartered Auditor for a rural cooperative dairy society ERP system called "INS Rama".
+    Analyze the given text which can be a Milk Bill, Bank Statement, Cash/Expense Voucher, Stock Register, or Minutes of Meeting.
 
-    Extract financial entries and simultaneously audit the text for any anomalies, doubts, discrepancies, missing information, or suspicious patterns.
-
-    Return ONLY a single valid JSON object. Do NOT wrap the response in markdown like ```json or ```. 
+    CRITICAL MANDATORY REQUIREMENT:
+    - If the document contains ANY amounts, numbers, bill items, or financial figures, you MUST extract them and create corresponding transaction objects inside the "ledger_entries" array. 
+    - DO NOT leave "ledger_entries" empty if there is financial data present. "suspicious_notes" is ONLY for forensic alerts and must NOT replace ledger extraction.
 
     The JSON object MUST have exactly these two keys:
     1. "ledger_entries": A JSON array of transaction objects.
@@ -65,27 +68,23 @@ class AIService {
 
     --- Rules for "ledger_entries" ---
     Each transaction object inside the array must have:
-    - date (String: DD-MM-YYYY format. If date is missing, use current date or best estimate)
-    - particulars (String: Clear description in English or Hinglish)
-    - amount (double: absolute numeric value)
+    - date (String: Strictly YYYY-MM-DD format for database compatibility. If date is missing, use current date or best estimate)
+    - particulars (String: Clear description in English or Hinglish specifying what the item/bill is about)
+    - amount (double: absolute numeric value, no commas or symbols)
     - type (String: strictly "DEBIT" or "CREDIT")
     - category (String: strictly one of "Income", "Expense", "Asset", "Liability")
     - doc_type (String: strictly one of "Milk Bill", "Voucher", "Bank Statement", "Minutes of Meeting", "Stock Register", "Other")
 
-    Accounting Guide:
-    - Money coming IN / Revenues / Incomes -> CREDIT, Income
-    - Money going OUT / Expenses / Purchases / Deductions -> DEBIT, Expense
-    - Cash withdrawals from bank -> DEBIT Cash (Asset), CREDIT Bank (Asset)
-    - For Minutes of Meeting: If financial resolutions/grants/penalties are passed, create a ledger entry for estimated value.
+    Accounting Logic:
+    - Revenues / Milk Sales / Money coming IN -> CREDIT, Income
+    - Purchases / Cattle Feed / Deductions / Expenses / Money going OUT -> DEBIT, Expense
+    - If it's a Milk Bill summary with a grand total, break it down into net payable and total deductions if possible, or create at least one major entry.
 
     --- Rules for "suspicious_notes" ---
-    Analyze the document for internal contradictions, high-risk items, or structural doubts. Write your findings as a list of strings strictly in HINDI.
+    Analyze the document for errors or structural doubts. Write your findings as a list of strings strictly in HINDI.
     Look for:
-    - Missing signatures or invoice numbers mentioned in text.
-    - Large cash transactions mentioned instead of bank transfers.
-    - Mathematical mismatch in totals or deductions.
-    - In Minutes of Meetings, note down if any member raised a protest, or if any expenditure was approved without proper quotation or look unusual.
-    - If everything looks perfectly fine, return an empty array [].
+    - Mismatch in totals, unusual cutting/overwriting mentioned, missing signatures, or abnormally high expenses.
+    - If everything is perfectly clean, return an empty array [].
 
     Document Text to Analyze:
     $documentText
@@ -94,7 +93,7 @@ class AIService {
     final response = await model.generateContent([Content.text(prompt)]);
     String responseText = response.text ?? "{}";
 
-    // क्लीनिंग
+    // क्लीनिंग (सुरक्षा के लिए)
     responseText = responseText.replaceAll('```json', '').replaceAll('```', '').trim();
 
     try {
@@ -106,7 +105,7 @@ class AIService {
   }
 
   // ==========================================
-  // 4. ACCOUNTING INSIGHT (वही पुराना कोड)
+  // 4. ACCOUNTING INSIGHT 
   // ==========================================
   static Future<String> generateAccountingInsight({
     required String societyName,
