@@ -1,8 +1,9 @@
 // lib/screens/master_ledger_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:excel/excel.dart'; // एक्सेल फाइल बनाने के लिए
-import 'package:path_provider/path_provider.dart'; // फाइल सेव करने की लोकेशन के लिए
+import 'package:excel/excel.dart'; 
+import 'package:path_provider/path_provider.dart'; 
+import 'package:share_plus/share_plus.dart'; // 🚀 नया: डायरेक्ट WhatsApp/Email शेयरिंग के लिए
 import '../database/db_helper.dart';
 
 class MasterLedgerScreen extends StatefulWidget {
@@ -24,9 +25,9 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
     _loadSocieties();
   }
 
-  // 1. समितियां लोड करना
   void _loadSocieties() async {
     final data = await DatabaseHelper.instance.queryAllSocieties();
+    if (!mounted) return;
     setState(() {
       _societies = data;
       if (_societies.isNotEmpty) {
@@ -36,20 +37,19 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
     });
   }
 
-  // 2. लेज़र का डेटा लोड करना
   void _loadLedgerData() async {
     if (_selectedSocietyId == null) return;
     setState(() => _isLoading = true);
     
     final data = await DatabaseHelper.instance.getMasterLedger(_selectedSocietyId!);
     
+    if (!mounted) return;
     setState(() {
       _ledgerData = data;
       _isLoading = false;
     });
   }
 
-  // 3. किसी एंट्री को एडिट करने का डायलॉग
   void _showEditDialog(Map<String, dynamic> row) {
     TextEditingController dateCtrl = TextEditingController(text: row['date']);
     TextEditingController particularsCtrl = TextEditingController(text: row['particulars']);
@@ -60,7 +60,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
             title: const Text('एंट्री एडिट करें'),
@@ -68,7 +68,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: dateCtrl, decoration: const InputDecoration(labelText: 'तारीख (DD-MM-YYYY)')),
+                  TextField(controller: dateCtrl, decoration: const InputDecoration(labelText: 'तारीख (YYYY-MM-DD)')),
                   TextField(controller: particularsCtrl, decoration: const InputDecoration(labelText: 'विवरण (Particulars)')),
                   TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'राशि (Amount)')),
                   const SizedBox(height: 10),
@@ -89,7 +89,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('रद्द करें')),
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('रद्द करें')),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                 onPressed: () async {
@@ -100,9 +100,13 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
                     'type': selectedType,
                     'category': selectedCategory,
                   };
+                  
                   await DatabaseHelper.instance.updateLedgerEntry(row['id'], updatedData);
-                  Navigator.pop(context);
-                  _loadLedgerData(); // रिफ्रेश करें
+                  
+                  // 🚀 फिक्स: Async Gap क्रैश को रोकने के लिए
+                  if (!mounted) return;
+                  Navigator.pop(dialogContext);
+                  _loadLedgerData(); 
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('एंट्री अपडेट हो गई!')));
                 },
                 child: const Text('सेव करें'),
@@ -114,21 +118,26 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
     );
   }
 
-  // 4. एंट्री डिलीट करना
   void _deleteEntry(int id) async {
     await DatabaseHelper.instance.deleteLedgerEntry(id);
+    
+    // 🚀 फिक्स: Async Gap क्रैश को रोकने के लिए
+    if (!mounted) return; 
     _loadLedgerData();
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('एंट्री डिलीट कर दी गई।')));
   }
 
-  // 5. 🚀 असली एक्सेल (Excel) फाइल जनरेट और सेव करना
-  void _exportToExcel() async {
+  // 🚀 असली अपग्रेड: एक्सेल फाइल बनाकर सीधे शेयर (WhatsApp/Email) करना
+  void _exportToExcelAndShare() async {
     if (_ledgerData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('एक्सपोर्ट करने के लिए कोई डेटा नहीं है!')));
       return;
     }
 
     try {
+      // लोडिंग इंडिकेटर दिखाना
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('एक्सेल फाइल तैयार हो रही है...'), duration: Duration(seconds: 1)));
+
       var excel = Excel.createExcel();
       Sheet sheetObject = excel['Master Ledger'];
       excel.setDefaultSheet('Master Ledger');
@@ -155,20 +164,27 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
         ]);
       }
 
-      // फाइल सेव करने की लोकेशन (लोकल स्टोरेज)
-      Directory directory = await getApplicationDocumentsDirectory();
-      String filePath = '${directory.path}/Master_Ledger_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+      // 🚀 फिक्स: फाइल को Temporary Directory में सेव करें ताकि वहां से शेयर की जा सके
+      Directory tempDir = await getTemporaryDirectory();
+      
+      // फाइल का नाम समिति के नाम और तारीख के साथ
+      String societyName = _societies.firstWhere((s) => s['id'] == _selectedSocietyId)['name'] ?? 'Society';
+      String cleanSocietyName = societyName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      String filePath = '${tempDir.path}/Ledger_${cleanSocietyName}_${DateTime.now().millisecondsSinceEpoch}.xlsx';
       
       File file = File(filePath);
       await file.writeAsBytes(excel.encode()!);
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('एक्सेल फाइल सेव हो गई:\n$filePath'),
-        duration: const Duration(seconds: 5),
-        backgroundColor: Colors.green.shade800,
-      ));
+      if (!mounted) return;
+      
+      // शेयरिंग डायलॉग खोलना (WhatsApp, Email, Telegram आदि के लिए)
+      await Share.shareXFiles(
+        [XFile(filePath)], 
+        text: '$societyName का मास्टर लेज़र (Excel Report) तैयार है।'
+      );
 
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('एक्सेल बनाने में त्रुटि: $e')));
     }
   }
@@ -182,15 +198,14 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.download),
-            tooltip: 'Export to Excel',
-            onPressed: _exportToExcel,
+            icon: const Icon(Icons.share), // 🚀 आइकॉन को Download से Share में बदला
+            tooltip: 'Export & Share Excel',
+            onPressed: _exportToExcelAndShare,
           )
         ],
       ),
       body: Column(
         children: [
-          // टॉप सेक्शन: समिति चुनना
           Container(
             padding: const EdgeInsets.all(16.0),
             color: Colors.grey.shade100,
@@ -218,16 +233,16 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
             ),
           ),
           
-          // एक्सेल शीट ग्रिड व्यू
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _ledgerData.isEmpty
                     ? const Center(child: Text("इस समिति का कोई लेज़र डेटा नहीं मिला।"))
-                    : InteractiveViewer( // ज़ूम और पैन करने के लिए
+                    : InteractiveViewer( 
                         constrained: false,
                         child: DataTable(
-                          headingRowColor: MaterialStateProperty.all(Colors.green.shade100),
+                          // 🚀 फिक्स: MaterialStateProperty अब डेप्रिकेट (पुराना) हो गया है, WidgetStatePropertyAll का इस्तेमाल करें
+                          headingRowColor: const WidgetStatePropertyAll(Color(0xFFC8E6C9)), 
                           columns: const [
                             DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
                             DataColumn(label: Text('Particulars', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -269,6 +284,14 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
                       ),
           ),
         ],
+      ),
+      // 🚀 यूज़र की सुविधा के लिए एक फ्लोटिंग बटन भी दे दिया गया है
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _exportToExcelAndShare,
+        backgroundColor: Colors.green.shade700,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.import_export),
+        label: const Text("Export Excel"),
       ),
     );
   }
