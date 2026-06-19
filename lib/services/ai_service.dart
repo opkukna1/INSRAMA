@@ -1,67 +1,85 @@
-// lib/services/ai_service.dart
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AiAnalysisService {
   
-  // 1. AI Analysis Service (INS Rama Edition)
-  static Future<String> generateFinancialAnalysis({
+  // 1. THE BRAIN 🧠 (Powered by Gemini)
+  static Future<String> generateAccountingInsight({
     required String societyName,
     required double totalMilk,
-    required double totalPayment,
+    required double milkPayment,
     required double totalDeductions,
     required String period,
   }) async {
     try {
+      // API Key .env से उठाना
       final apiKey = dotenv.env['GEMINI_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
-        return "Error: AI Service is not configured. (API Key missing)";
+        return "Error: AI Auditor is currently sleeping. (API Key missing)";
       }
 
-      // 'gemini-1.5-flash' सबसे स्टेबल और फास्ट है
+      // 🔥 मॉडल का नाम EXACTLY आपके दूसरे ऐप वाला 🔥
       final model = GenerativeModel(
         model: 'gemini-3.1-flash-lite-preview', 
         apiKey: apiKey,
       );
 
+      // 🔥 INS RAMA ELITE ACCOUNTANT PROMPT 🔥
       final prompt = """
-      You are an expert Milk Accounting Auditor and Business Mentor for "INS Rama".
-      Your job is to analyze the milk collection data for a society and provide sharp, practical financial insights.
+      You are an elite Milk Accounting Auditor and Business Mentor for a society accounting platform called "INS Rama".
 
-      Data for Analysis:
+      Your job is to analyze the society's financial data and provide a sharp, practical accounting insight — not generic motivation.
+
+      Society Performance Data:
       - Society Name: $societyName
       - Period: $period
       - Total Milk Collected: ${totalMilk.toStringAsFixed(2)} Liters
-      - Total Payment: ₹${totalPayment.toStringAsFixed(2)}
+      - Total Payment Earned: ₹${milkPayment.toStringAsFixed(2)}
       - Total Deductions (Ghee, Feed, etc.): ₹${totalDeductions.toStringAsFixed(2)}
 
       Instructions:
-      1. Start with a professional observation of the society's performance.
-      2. Analyze the net income (Payment - Deductions).
-      3. Identify if deductions are high compared to the milk volume.
-      4. Give 3 practical tips to improve profit or efficiency for the society.
-      5. Sound like an experienced Financial Consultant/Accountant.
-      
+      1. Start with a short professional headline.
+      2. Calculate the Net Income (Payment - Deductions) and briefly interpret what this means for the society's profitability.
+      3. Identify if deductions are high compared to the overall payment.
+      4. Provide a **3-step practical improvement strategy** specifically to manage overheads or improve milk quality.
+      5. Give one **smart accounting/business strategy tip** (like ledger maintenance, deduction tracking, etc).
+      6. End with a short motivating line like an expert auditor encouraging the society manager.
+
       Rules:
-      - Use Markdown formatting.
-      - Keep response under 150 words.
-      - Write in a professional yet friendly Hinglish tone.
-      - Do not use generic advice. Focus on milk accounting data.
+      - Use Markdown formatting (headings, bullet points).
+      - Keep response under 180 words.
+      - Write in natural Hinglish like a friendly mentor.
+      - Avoid generic advice.
+      - Sound like a real financial coach analyzing performance.
       """;
 
+      // AI से रिस्पॉन्स मांगना
       final response = await model.generateContent([Content.text(prompt)]);
-      return response.text ?? "Analysis currently unavailable.";
+      
+      return response.text ?? "We couldn't analyze the data right now. Please try again!";
       
     } catch (e) {
       debugPrint("Gemini AI Error: $e");
-      return "🚨 AI Analysis Error: Could not generate insight at the moment.";
+      // अगर AI फेल हो जाए तो एक डिफॉल्ट फॉलबैक मैसेज
+      return """
+🚨 AI Error Details: $e
+
+---
+
+### 📊 Basic Analysis for $societyName
+- **Net Profit:** ₹${(milkPayment - totalDeductions).toStringAsFixed(2)}
+- **Total Milk:** ${totalMilk.toStringAsFixed(2)} L
+- **Deductions:** ₹${totalDeductions.toStringAsFixed(2)}
+
+*Note: Connect to the internet for a detailed AI Auditor analysis!*
+""";
     }
   }
 
-  // PDF Text Extraction (जो आपके पुराने काम में था)
+  // PDF Text Extraction (बिल अपलोड करने के लिए)
   static Future<String> extractTextFromPdf(String path) async {
-    // यहाँ अपना PDF एक्सट्रैक्शन कोड रखें (जो आप पहले इस्तेमाल कर रहे थे)
-    return "Dummy extracted text"; 
+    // यहाँ आपका मौजूदा PDF रीड करने वाला कोड आएगा 
+    return ""; 
   }
 }
