@@ -1,7 +1,7 @@
 // lib/services/ai_service.dart
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data'; // 🚀 नया: इमेज और पीडीएफ बाइट्स हैंडल करने के लिए
+import 'dart:typed_data'; // इमेज और पीडीएफ बाइट्स हैंडल करने के लिए
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -38,12 +38,12 @@ class AIService {
   }
 
   // ==========================================
-  // 🚀 3. अपग्रेडेड मास्टर AI मुनीम + ऑडिटर (विज़न और डबल-काउंटिंग फिक्स के साथ)
+  // 🚀 3. अपग्रेडेड मास्टर AI मुनीम (🌟 फाइनल 4-अकाउंट मैपिंग और प्रॉम्ट फिक्स)
   // ==========================================
   static Future<Map<String, dynamic>> processDocumentWithAuditorAI({
     String? documentText,     // नॉर्मल एक्सट्रैक्टेड टेक्स्ट (यदि उपलब्ध हो)
-    Uint8List? fileBytes,     // 📸 नया: इमेज पीडीएफ या डायरेक्ट फोटो के बाइट्स
-    String? mimeType,         // 🚀 नया: 'application/pdf', 'image/jpeg', 'image/png' आदि
+    Uint8List? fileBytes,     // 📸 इमेज पीडीएफ या डायरेक्ट फोटो के बाइट्स
+    String? mimeType,         // 'application/pdf', 'image/jpeg', 'image/png' आदि
     required String apiKey,
   }) async {
     
@@ -55,56 +55,59 @@ class AIService {
       ),
     );
 
-    // 🌟 सुपर प्रॉम्ट: डबल-काउंटिंग रोकने के लिए कड़े नियम
+    // 🌟 अपग्रेडेड प्रॉम्ट: इसमें 4 खातों की सभी Strict Account Heads की सटीक मैपिंग दी गई है
     final prompt = """
     You are an Elite Forensic Accountant and Chartered Auditor for a rural cooperative dairy society ERP system called "INS Rama".
-    Analyze the provided document (which could be text, a scanned image PDF, or a photo of a Milk Bill, Bank Statement, Cash/Expense Voucher, or Stock Register).
+    Analyze the provided document (text, scanned image PDF, or a photo of a Milk Bill, Bank Statement, Cash/Expense Voucher, or Stock Register).
 
     CRITICAL MANDATORY REQUIREMENT:
-    - If the document contains ANY numbers, bill items, or financial figures, you MUST extract them into the "ledger_entries" array.
-    - DO NOT leave "ledger_entries" empty if financial data is present.
+    - Extract financial figures into the "ledger_entries" array. Do not leave it empty if data is present.
+    - Write strict audit findings in "suspicious_notes" in clear HINDI language.
 
     🚨 STRICT RULES TO PREVENT DOUBLE/TRIPLE COUNTING (मिल्क बिल फिक्स):
-    1. If the document is a "Milk Bill" covering a period (e.g., 10 or 15 days), DO NOT create individual entries for each day/line item AND a separate entry for the "Total" or "Grand Total". This inflates the ledger.
-    2. PREFERRED APPROACH FOR MILK BILLS: Create ONE single, consolidated transaction entry for the entire period's net business (e.g., Particulars: "15 दिनों की कुल दुग्ध बिक्री" or "दुग्ध खरीद Summary").
-    3. IGNORE summary phrases like "Paid to Current Account", "Bank Transfer", "Net Payable", or "कुल देय राशि" as separate entries. They are settlement modes of the same bill, NOT a new income or expense transaction. 
-    4. Never duplicate the same amount under different entry names.
+    1. If the document is a "Milk Bill" covering a period (e.g., 10 or 15 days), DO NOT create individual entries for each day/line item AND a separate entry for the "Total". 
+    2. Create ONE single, consolidated transaction entry for the entire period's net business (e.g., Particulars: "15 दिनों की कुल दुग्ध बिक्री" or "दुग्ध खरीद Summary").
+    3. Ignore settlement summaries like "Paid to Current Account", "Bank Transfer" as separate entries. They are settlement modes, not new transactions.
 
     The JSON object MUST have exactly these two keys:
     1. "ledger_entries": A JSON array of transaction objects.
-    2. "suspicious_notes": A JSON array of strings containing audit doubts or structural flags written in CLEAR HINDI language.
+    2. "suspicious_notes": A JSON array of strings containing audit doubts or structural flags written in HINDI.
 
     --- Rules for "ledger_entries" ---
-    Each transaction object inside the array must have:
-    - date (String: Strictly YYYY-MM-DD format. If a period is given like 01 to 15, use the last date of that period. If missing, use current date)
-    - particulars (String: Clear description in English or Hinglish specifying what the transaction represents)
-    - amount (double: absolute numeric value, no commas or symbols)
-    - type (String: strictly "DEBIT" or "CREDIT")
-    - category (String: strictly one of "Income", "Expense", "Asset", "Liability")
-    - doc_type (String: strictly one of "Milk Bill", "Voucher", "Bank Statement", "Minutes of Meeting", "Stock Register", "Other")
+    Each transaction object inside the array must have exactly these keys:
+    - date (String: Strictly YYYY-MM-DD format. If a period is given, use the last date of that period).
+    - particulars (String: Clear description in English or Hinglish like 'Milk purchase collection' or 'Office honorarium payment').
+    - amount (double: absolute numeric value, no commas or currency symbols).
+    - type (String: strictly "DEBIT" or "CREDIT").
+    - category (String: strictly one of "Income", "Expense", "Asset", "Liability").
+    - doc_type (String: strictly one of "Milk Bill", "Voucher", "Bank Statement", "Other").
+    - account_head (String: You MUST map the transaction strictly to one of these exact string values based on context):
+      * "milk_purchase" -> For raw milk bought/collected from members (Debit, Expense, goes to Trading Account)
+      * "milk_sales" -> For milk sold to the Dairy Union/Federation (Credit, Income, goes to Trading Account)
+      * "feed_purchase" -> For purchasing cattle feed/dana stock for society (Debit, Expense, goes to Trading Account)
+      * "feed_sales" -> For selling cattle feed/dana to members (Credit, Income, goes to Trading Account)
+      * "establishment_expense" -> For salaries, secretary honorarium, stationery, refreshments, tea expenses (Debit, Expense, goes to P&L Account)
+      * "audit_fee_provision" -> For audit fees or audit provisions mentioned (Debit, Expense, goes to P&L Account)
+      * "miscellaneous_income" -> For any small unexpected direct/indirect income or penalties collected (Credit, Income, goes to P&L Account)
+      * "share_capital" -> For member share capital deposits or increases (Credit, Liability, goes to Balance Sheet)
+      * "dairy_debtors" -> For outstanding dues receivable from the main dairy union (Debit, Asset, goes to Balance Sheet)
 
-    Accounting Logic:
-    - Revenues / Milk Sales / Money coming IN -> CREDIT, Income
-    - Purchases / Cattle Feed / Deductions / Expenses / Money going OUT -> DEBIT, Expense
-
-    --- Rules for "suspicious_notes" ---
-    Analyze for mismatches, missing signatures, or abnormally high expenses. Write findings strictly in HINDI. If clean, return [].
+    Accounting Logic Reference:
+    - Money coming IN / Sales / Revenue -> CREDIT
+    - Money going OUT / Purchases / Expenses -> DEBIT
     """;
 
-    // 🚀 मल्टीमॉडल सपोर्ट: यदि फाइल बाइट्स उपलब्ध हैं, तो जेमिनी विज़न का उपयोग करें (इमेज/स्कैन्ड पीडीएफ के लिए)
     final List<Part> parts = [TextPart(prompt)];
     
     if (fileBytes != null && mimeType != null) {
-      // जेमिनी सीधे इमेज या स्कैन्ड पीडीएफ फाइल को विजुअली देखकर प्रोसेस कर लेगा!
+      // मल्टीमॉडल सपोर्ट: जेमिनी सीधे विजुअली देखकर प्रोसेस करेगा
       parts.add(DataPart(mimeType, fileBytes));
     } else if (documentText != null && documentText.isNotEmpty) {
-      // केवल टेक्स्ट होने पर टेक्स्ट पार्ट जोड़ें
       parts.add(TextPart("Document Text to Analyze:\n$documentText"));
     } else {
       throw Exception("क्रैश: जेमिनी को भेजने के लिए न तो टेक्स्ट मिला और न ही फ़ाइल बाइट्स!");
     }
 
-    // जेमिनी को कॉल करें
     final response = await model.generateContent([Content.multi(parts)]);
     String responseText = response.text ?? "{}";
 
