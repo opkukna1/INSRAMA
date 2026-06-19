@@ -3,36 +3,46 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
-class DBHelper {
-  // Singleton pattern ताकि पूरे ऐप में डेटाबेस का एक ही इंस्टेंस रहे
-  static final DBHelper _instance = DBHelper._internal();
-  factory DBHelper() => _instance;
-  DBHelper._internal();
-
+class DatabaseHelper {
+  // 1. Singleton pattern (अब यह DatabaseHelper.instance के नाम से चलेगा)
+  static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
+
+  DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB();
+    _database = await _initDB('ins_rama_accounting.db');
     return _database!;
   }
 
-  // 1. डेटाबेस इनिशियलाइज़ करना
-  Future<Database> _initDB() async {
-    String path = join(await getDatabasesPath(), 'ins_rama_accounting.db');
-    
+  // 2. डेटाबेस इनिशियलाइज़ करना
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
     return await openDatabase(
       path,
       version: 1,
-      onCreate: _onCreate,
+      onCreate: _createDB,
     );
   }
 
-  // 2. टेबल बनाना (AI के JSON Schema के आधार पर)
-  Future _onCreate(Database db, int version) async {
+  // 3. टेबल बनाना (Societies और Bills दोनों के लिए)
+  Future _createDB(Database db, int version) async {
+    // A. समिति (Society) की टेबल
+    await db.execute('''
+      CREATE TABLE societies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL
+      )
+    ''');
+
+    // B. दूध के बिलों (Bills) की टेबल
     await db.execute('''
       CREATE TABLE bills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        society_id INTEGER,
         bill_no TEXT,
         start_date TEXT,
         end_date TEXT,
@@ -41,26 +51,52 @@ class DBHelper {
         head_load REAL,
         overhead REAL,
         ghee_deduction REAL,
-        cattle_feed_deduction REAL
+        cattle_feed_deduction REAL,
+        FOREIGN KEY (society_id) REFERENCES societies (id) ON DELETE CASCADE
       )
     ''');
   }
 
-  // 3. नया बिल डेटाबेस में सेव करना (AI प्रोसेसिंग के बाद)
-  Future<int> insertBill(Map<String, dynamic> billData) async {
-    Database db = await database;
+  // ==========================================
+  //         SOCIETY (समिति) के फंक्शन्स
+  // ==========================================
+  
+  Future<int> insertSociety(Map<String, dynamic> row) async {
+    final db = await database;
+    return await db.insert('societies', row);
+  }
+
+  Future<List<Map<String, dynamic>>> queryAllSocieties() async {
+    final db = await database;
+    return await db.query('societies', orderBy: 'id DESC');
+  }
+
+
+  // ==========================================
+  //         BILLS (दूध बिल) के फंक्शन्स
+  // ==========================================
+
+  // नया बिल डेटाबेस में सेव करना (AI प्रोसेसिंग के बाद)
+  Future<int> insertMilkBill(Map<String, dynamic> billData) async {
+    final db = await database;
     return await db.insert('bills', billData, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  // 4. सारे बिल डेटाबेस से निकालना (UI में दिखाने और P&L बनाने के लिए)
+  // किसी एक समिति के सारे बिल निकालने के लिए
+  Future<List<Map<String, dynamic>>> queryBillsBySociety(int societyId) async {
+    final db = await database;
+    return await db.query('bills', where: 'society_id = ?', whereArgs: [societyId]);
+  }
+
+  // सारे बिल निकालने के लिए (बिना समिति के फिल्टर के)
   Future<List<Map<String, dynamic>>> getAllBills() async {
-    Database db = await database;
+    final db = await database;
     return await db.query('bills', orderBy: "id DESC");
   }
 
-  // 5. किसी बिल को अपडेट करना (जब यूज़र कोई गलती सुधार कर Edit करे)
+  // किसी बिल को अपडेट करना (जब यूज़र कोई गलती सुधार कर Edit करे)
   Future<int> updateBill(int id, Map<String, dynamic> updatedData) async {
-    Database db = await database;
+    final db = await database;
     return await db.update(
       'bills',
       updatedData,
@@ -69,9 +105,9 @@ class DBHelper {
     );
   }
 
-  // 6. किसी बिल को डिलीट करना
+  // किसी बिल को डिलीट करना
   Future<int> deleteBill(int id) async {
-    Database db = await database;
+    final db = await database;
     return await db.delete(
       'bills',
       where: 'id = ?',
@@ -79,9 +115,9 @@ class DBHelper {
     );
   }
 
-  // 7. डेटाबेस का सारा कचरा साफ करना (Reset all data)
+  // डेटाबेस का सारा कचरा साफ करना (Reset all data)
   Future<void> clearAllBills() async {
-    Database db = await database;
+    final db = await database;
     await db.execute('DELETE FROM bills');
   }
 }
