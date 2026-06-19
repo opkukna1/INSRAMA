@@ -40,6 +40,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   // खातों के नाम हिंदी रूपांतरण मैपिंग डिक्शनरी
   final Map<String, String> _headNamesHindi = {
+    "none": "सामान्य प्रविष्टि / कोई नहीं", // 🚀 सुरक्षा के लिए 'none' फॉलबैक जोड़ा
     "milk_purchase": "दुग्ध खरीद (Milk Purchase)",
     "milk_sales": "दुग्ध बिक्री (Milk Sales)",
     "feed_purchase": "पशु आहार खरीद (Feed Purchase)",
@@ -164,7 +165,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(_selectedSocietyName.toUpperCase(), style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-                    pw.Text("AUTOMATED FINAL FINANCIAL STATEMENT", style: const pw.TextStyle(fontSize: 12, grey: true)),
+                    pw.Text("AUTOMATED FINAL FINANCIAL STATEMENT", style: pw.TextStyle(fontSize: 12, color: PdfColors.grey)), // 🔥 फिक्स: 'grey: true' को 'color: PdfColors.grey' में बदला
                     pw.SizedBox(height: 15),
                   ],
                 ),
@@ -177,7 +178,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Direct Trading Revenues (Sales):"), pw.Text("INR ${_totalTradingIncome.toStringAsFixed(2)}")]),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Direct Operating Cost (Purchases):"), pw.Text("INR ${_totalTradingExpense.toStringAsFixed(2)}")]),
             pw.SizedBox(height: 4),
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("GROSS PROFIT / SURPLUS:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)), pw.Text("INR ${_grossProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("GROWS PROFIT / SURPLUS:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)), pw.Text("INR ${_grossProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))]),
             pw.SizedBox(height: 20),
 
             // 2. Profit & Loss Summary
@@ -187,7 +188,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Indirect Miscellaneous Receipts:"), pw.Text("INR ${_totalPnlIncome.toStringAsFixed(2)}")]),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Establishment & Administrative Provisions:"), pw.Text("INR ${_totalPnlExpense.toStringAsFixed(2)}")]),
             pw.SizedBox(height: 4),
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("NET AUDITED PROFIT (Net Surplus):", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green))), pw.Text("INR ${_netProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green))]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("NET AUDITED PROFIT (Net Surplus):", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green)), pw.Text("INR ${_netProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green))]),
             pw.SizedBox(height: 20),
 
             // 3. Balance Sheet Summary
@@ -427,7 +428,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
   TableRow _tableEmptyRow() {
     return const TableRow(
       children: [
-        Padding(padding: EdgeInsets.all(10.0), child: Text("कोई प्रविष्टि दर्ज नहीं है", style: TextStyle(fontSize: 12, color: Colors.grey, style: FontStyle.italic))),
+        Padding(
+          padding: EdgeInsets.all(10.0), 
+          child: Text(
+            "कोई प्रविष्टि दर्ज नहीं है", 
+            style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic) // 🔥 फिक्स: 'style' की जगह 'fontStyle' किया
+          )
+        ),
         Padding(padding: EdgeInsets.all(10.0), child: Text("₹ 0.00", textAlign: TextAlign.right, style: TextStyle(fontSize: 12, color: Colors.grey))),
       ],
     );
