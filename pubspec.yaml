@@ -29,6 +29,9 @@ dependencies:
   # तारीखों और खातों को सही फॉर्मेट (जैसे ₹10,000.00) में दिखाने के लिए
   intl: ^0.19.0
 
+  # 🔥 फिक्स 1: .env फाइल से API Key रीड करने के लिए पैकेज जोड़ा गया
+  flutter_dotenv: ^5.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -36,3 +39,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # 🔥 फिक्स 2: .env फाइल को ऐप के एसेट्स में शामिल किया गया ताकि कोड इसे लोड कर सके
+  assets:
+    - .env
