@@ -2,9 +2,33 @@ import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-class AiAnalysisService {
+// 🚀 फिक्स: क्लास का नाम वापस AIService कर दिया है
+class AIService {
   
-  // 1. THE BRAIN 🧠 (Powered by Gemini)
+  // ==========================================
+  // 1. BILL PROCESSING (आपका पुराना कोड)
+  // ==========================================
+  
+  static Future<String> extractTextFromPdf(String path) async {
+    // यहाँ अपना पुराना PDF रीड करने वाला कोड ही रहने दें 
+    // (जो आपके पास पहले से था, उसे डिलीट न करें)
+    return ""; 
+  }
+
+  static Future<Map<String, dynamic>> processBillWithGemini({
+    required String pdfText,
+    required String apiKey,
+    required String modelName,
+  }) async {
+    // यहाँ अपना पुराना बिल प्रोसेस करने वाला AI कोड ही रहने दें
+    // (जो बिल से JSON डेटा निकालता है)
+    return {};
+  }
+
+  // ==========================================
+  // 2. ACCOUNTING INSIGHT (हमारा नया AI कोड)
+  // ==========================================
+  
   static Future<String> generateAccountingInsight({
     required String societyName,
     required double totalMilk,
@@ -13,19 +37,16 @@ class AiAnalysisService {
     required String period,
   }) async {
     try {
-      // API Key .env से उठाना
       final apiKey = dotenv.env['GEMINI_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
         return "Error: AI Auditor is currently sleeping. (API Key missing)";
       }
 
-      // 🔥 मॉडल का नाम EXACTLY आपके दूसरे ऐप वाला 🔥
       final model = GenerativeModel(
         model: 'gemini-3.1-flash-lite-preview', 
         apiKey: apiKey,
       );
 
-      // 🔥 INS RAMA ELITE ACCOUNTANT PROMPT 🔥
       final prompt = """
       You are an elite Milk Accounting Auditor and Business Mentor for a society accounting platform called "INS Rama".
 
@@ -54,14 +75,12 @@ class AiAnalysisService {
       - Sound like a real financial coach analyzing performance.
       """;
 
-      // AI से रिस्पॉन्स मांगना
       final response = await model.generateContent([Content.text(prompt)]);
       
       return response.text ?? "We couldn't analyze the data right now. Please try again!";
       
     } catch (e) {
       debugPrint("Gemini AI Error: $e");
-      // अगर AI फेल हो जाए तो एक डिफॉल्ट फॉलबैक मैसेज
       return """
 🚨 AI Error Details: $e
 
@@ -75,11 +94,5 @@ class AiAnalysisService {
 *Note: Connect to the internet for a detailed AI Auditor analysis!*
 """;
     }
-  }
-
-  // PDF Text Extraction (बिल अपलोड करने के लिए)
-  static Future<String> extractTextFromPdf(String path) async {
-    // यहाँ आपका मौजूदा PDF रीड करने वाला कोड आएगा 
-    return ""; 
   }
 }
