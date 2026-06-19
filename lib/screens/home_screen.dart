@@ -5,7 +5,7 @@ import 'society_management_screen.dart';
 import 'bill_upload_screen.dart';
 import 'accounts_screen.dart';
 import 'audit_report_screen.dart'; 
-import 'master_ledger_screen.dart'; // 🚀 न्यू: मास्टर लेज़र स्क्रीन भी जोड़ दी
+import 'master_ledger_screen.dart'; 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50, // प्रीमियम लाइट बैकग्राउंड
+      backgroundColor: Colors.grey.shade50, 
       appBar: AppBar(
         title: const Text(
           'INS RAMA ERP',
@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. 🚀 प्रीमियम मिनिमलिस्टिक स्टेट्स बैनर (बिना किसी ट्रेडिशनल ग्रीट के)
+              // 1. स्टेट्स बैनर
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
@@ -71,7 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.green.shadowColor.withValues(alpha: 0.3),
+                      // 🚀 फिक्स 1: shadowColor हटाकर सीधे ओपेसिटी का इस्तेमाल किया
+                      color: Colors.green.withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 6),
                     )
@@ -81,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      cross         : CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'OPERATIONAL OVERVIEW',
@@ -116,14 +117,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 14),
 
-              // 2. 🚀 न्यू एब्सट्रैक्ट ग्रिड लेआउट (5 स्क्रीन के लिए परफेक्ट सेटिंग)
+              // 2. ग्रिड लेआउट
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 2,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
-                childAspectRatio: 1.1, // कार्ड्स का प्रोपोर्शन सेट करने के लिए
+                childAspectRatio: 1.1, 
                 children: [
                   _buildPremiumMenuCard(
                     context,
@@ -162,7 +163,6 @@ class _HomeScreenState extends State<HomeScreen> {
               
               const SizedBox(height: 14),
               
-              // 5वां कार्ड फुल विड्थ (ताकि लेआउट अनबैलेंस न दिखे और वीआईपी फील दे)
               _buildPremiumMenuCard(
                 context,
                 title: 'फॉरेंसिक ऑडिट रिपोर्ट्स (AI Alerts)',
@@ -179,7 +179,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 🚀 अल्टीमेट प्रीमियम कार्ड विजेट डिज़ाइन
   Widget _buildPremiumMenuCard(
     BuildContext context, {
     required String title,
@@ -242,10 +241,12 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                // 🚀 फिक्स 2: .between को बदलकर .spaceBetween किया
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.between,
+                    // 🚀 फिक्स 3: .between को बदलकर .spaceBetween किया
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
