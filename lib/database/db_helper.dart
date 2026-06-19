@@ -11,8 +11,8 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    // 🚀 फ्रेश डेटाबेस वर्जन ताकि सभी नई टेबल बिना किसी एरर के बन जाएँ
-    _database = await _initDB('ins_rama_v6.db'); 
+    // 🚀 वर्जन v7: इंडेक्सिंग सपोर्ट के साथ ताकि हजारों एंट्रीज होने पर भी ऐप सुपरफास्ट चले
+    _database = await _initDB('ins_rama_v7.db'); 
     return _database!;
   }
 
@@ -61,7 +61,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // 🚀 4. नई टेबल: Document Doubts Table (AI द्वारा खोजी गई संदिग्ध गड़बड़ियां - हिंदी में)
+    // 4. Document Doubts Table (AI द्वारा खोजी गई संदिग्ध गड़बड़ियां - हिंदी में)
     await db.execute('''
       CREATE TABLE document_doubts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,6 +71,11 @@ class DatabaseHelper {
         created_at TEXT
       )
     ''');
+
+    // 🚀 परफॉर्मेंस बूस्टर: भारी डेटा होने पर भी क्वेरीज़ को स्लो होने से बचाने के लिए इंडेक्स बनाना
+    await db.execute('CREATE INDEX idx_ledger_society ON master_ledger (society_id);');
+    await db.execute('CREATE INDEX idx_files_society ON processed_files (society_id);');
+    await db.execute('CREATE INDEX idx_doubts_society ON document_doubts (society_id);');
   }
 
   // ==========================================
@@ -131,7 +136,6 @@ class DatabaseHelper {
   // किसी समिति का सारा मास्टर लेज़र डेटा निकालना
   Future<List<Map<String, dynamic>>> getMasterLedger(int societyId) async {
     final db = await database;
-    // 🚀 फिक्स: यहाँ 'whereArgs' गायब था, उसे जोड़ दिया गया है ताकि क्रैश न हो
     return await db.query(
       'master_ledger', 
       where: 'society_id = ?', 
@@ -180,7 +184,6 @@ class DatabaseHelper {
   // किसी समिति के सारे हिंदी डाउट्स/अलर्ट्स स्क्रीन पर दिखाने के लिए निकालना
   Future<List<Map<String, dynamic>>> getDoubtsBySociety(int societyId) async {
     final db = await database;
-    // 🚀 फिक्स: यहाँ भी 'whereArgs' गायब था, इसे अब सही कर दिया गया है
     return await db.query(
       'document_doubts', 
       where: 'society_id = ?', 
