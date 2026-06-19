@@ -14,8 +14,8 @@ class BillUploadScreen extends StatefulWidget {
 class _BillUploadScreenState extends State<BillUploadScreen> {
   final _apiKeyController = TextEditingController();
   
-  // 🚀 यहाँ डिफ़ॉल्ट रूप से नया 3.1 Flash Lite मॉडल सेट कर दिया है
-  String _selectedModel = "gemini-3.1-flash-lite-preview"; 
+  // 🚀 फिक्स: यहाँ डिफ़ॉल्ट रूप से 'gemini-1.5-flash-lite-preview' सेट कर दिया है
+  String _selectedModel = "gemini-1.5-flash-lite-preview"; 
   
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
@@ -36,7 +36,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
   }
 
   void _loadSocieties() async {
-    // आपके मौजूदा कोड के अनुसार
     final data = await DatabaseHelper.instance.queryAllSocieties();
     setState(() {
       _societies = data;
@@ -46,7 +45,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
     });
   }
 
-  // 🔥 नया बैच प्रोसेसिंग फंक्शन
+  // बैच प्रोसेसिंग फंक्शन
   void _pickAndProcessMultipleBills() async {
     if (_selectedSocietyId == null) {
       _showSnackBar("कृपया पहले 'समिति प्रबंधन' स्क्रीन पर जाकर एक समिति जोड़ें।");
@@ -58,7 +57,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
     }
 
     try {
-      // 1. allowMultiple: true के साथ एक साथ कई PDF चुनना
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         allowMultiple: true, 
         type: FileType.custom,
@@ -73,7 +71,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
           _processedBatchData.clear();
         });
         
-        // 2. एक-एक करके फाइल को लूप में प्रोसेस करना
         for (int i = 0; i < result.files.length; i++) {
           PlatformFile file = result.files[i];
           
@@ -84,17 +81,14 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
             });
 
             try {
-              // a) टेक्स्ट निकालें
               String extractedText = await AIService.extractTextFromPdf(file.path!);
               
-              // b) AI से प्रोसेस कराएं
               Map<String, dynamic> aiResult = await AIService.processBillWithGemini(
                 pdfText: extractedText,
                 apiKey: _apiKeyController.text,
                 modelName: _selectedModel,
               );
 
-              // c) डेटा तैयार करें (आपके existing DB schema के अनुसार)
               Map<String, dynamic> billRow = {
                 'society_id': _selectedSocietyId,
                 'bill_no': aiResult['bill_no'],
@@ -108,23 +102,19 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 'cattle_feed_deduction': aiResult['cattle_feed_deduction'] ?? 0.0,
               };
 
-              // d) SQLite में सेव करें
               await DatabaseHelper.instance.insertMilkBill(billRow);
 
-              // e) UI में दिखाने के लिए लिस्ट में जोड़ें
               setState(() {
                 _processedBatchData.add(aiResult);
               });
 
-              // ⚠️ रेट लिमिटिंग से बचने के लिए 3 सेकंड का ब्रेक (Google API क्रैश नहीं होगा)
               if (i < result.files.length - 1) {
                 await Future.delayed(const Duration(seconds: 3));
               }
 
             } catch (e) {
-              // अगर कोई 1 बिल खराब है, तो पूरा लूप नहीं टूटेगा
-              print("\$file.name में एरर: \$e");
-              _showSnackBar("त्रुटि: \${file.name} प्रोसेस नहीं हो सका।");
+              print("${file.name} में एरर: $e");
+              _showSnackBar("त्रुटि: ${file.name} प्रोसेस नहीं हो सका।");
             }
           }
         }
@@ -133,7 +123,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
           _isLoading = false;
         });
 
-        _showSnackBar("🎉 कुल \$_totalFiles में से \${_processedBatchData.length} बिल सफलतापूर्वक प्रोसेस और सेव हो गए!");
+        _showSnackBar("🎉 कुल $_totalFiles में से ${_processedBatchData.length} बिल सफलतापूर्वक प्रोसेस और सेव हो गए!");
       }
     } catch (e) {
       setState(() { _isLoading = false; });
@@ -162,7 +152,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 children: [
                   const CircularProgressIndicator(color: Colors.green),
                   const SizedBox(height: 24),
-                  // 🔥 डायनामिक प्रोग्रेस टेक्स्ट
                   Text(
                     "प्रोसेसिंग चल रही है... ($_processedFiles/$_totalFiles)", 
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)
@@ -192,9 +181,9 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                   DropdownButtonFormField<String>(
                     value: _selectedModel,
                     decoration: const InputDecoration(border: OutlineInputBorder(), labelText: "Model Name"),
-                    // 🚀 यहाँ नए मॉडल्स की लिस्ट अपडेट कर दी गई है
+                    // 🚀 फिक्स: ड्रॉपडाउन में सही मॉडल के नाम अपडेट कर दिए
                     items: [
-                      "gemini-3.1-flash-lite-preview",
+                      "gemini-1.5-flash-lite-preview",
                       "gemini-1.5-flash", 
                       "gemini-1.5-pro"
                     ].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
@@ -214,7 +203,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                         ),
                   const SizedBox(height: 24),
 
-                  // 🔥 अपडेटेड बटन: अब यह कई फाइल्स सेलेक्ट करवाएगा
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -226,7 +214,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                     ),
                   ),
 
-                  // 🔥 अब एक नहीं, जितने बिल प्रोसेस हुए हैं, सबकी लिस्ट दिखाएंगे
                   if (_processedBatchData.isNotEmpty) ...[
                     const SizedBox(height: 24),
                     Text('📊 सफलतापूर्वक सेव हुए बिल (${_processedBatchData.length}):', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
