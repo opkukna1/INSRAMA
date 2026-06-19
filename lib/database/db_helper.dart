@@ -107,10 +107,9 @@ class DatabaseHelper {
     });
   }
 
-  // 🚀 फिक्स: ऑडिट स्क्रीन द्वारा मांगे जाने वाले अपलोडेड बिलों/फाइलों की लिस्ट निकालने का मेथड
+  // ऑडिट स्क्रीन द्वारा मांगे जाने वाले अपलोडेड बिलों/फाइलों की लिस्ट निकालने का मेथड
   Future<List<Map<String, dynamic>>> queryBillsBySociety(int societyId) async {
     final db = await database;
-    // चूँकि अपलोडेड बिलों की एंट्री 'processed_files' टेबल में होती है, इसलिए वहीं से डेटा निकाला गया है
     return await db.query(
       'processed_files', 
       where: 'society_id = ?', 
@@ -132,7 +131,13 @@ class DatabaseHelper {
   // किसी समिति का सारा मास्टर लेज़र डेटा निकालना
   Future<List<Map<String, dynamic>>> getMasterLedger(int societyId) async {
     final db = await database;
-    return await db.query('master_ledger', where: 'society_id = ?', orderBy: 'date DESC');
+    // 🚀 फिक्स: यहाँ 'whereArgs' गायब था, उसे जोड़ दिया गया है ताकि क्रैश न हो
+    return await db.query(
+      'master_ledger', 
+      where: 'society_id = ?', 
+      whereArgs: [societyId], 
+      orderBy: 'date DESC'
+    );
   }
 
   // एंट्री अपडेट करना (जब यूजर इन-ऐप एक्सेल शीट में डाटा एडिट करे)
@@ -163,7 +168,7 @@ class DatabaseHelper {
   }
 
   // ==========================================
-  //     🚀 DOCUMENT DOUBTS (हिंदी ऑडिट रिपोर्ट्स)
+  //         DOCUMENT DOUBTS (हिंदी ऑडिट रिपोर्ट्स)
   // ==========================================
   
   // संदिग्ध एंट्री या गड़बड़ी को सेव करना
@@ -175,7 +180,13 @@ class DatabaseHelper {
   // किसी समिति के सारे हिंदी डाउट्स/अलर्ट्स स्क्रीन पर दिखाने के लिए निकालना
   Future<List<Map<String, dynamic>>> getDoubtsBySociety(int societyId) async {
     final db = await database;
-    return await db.query('document_doubts', where: 'society_id = ?', orderBy: 'id DESC');
+    // 🚀 फिक्स: यहाँ भी 'whereArgs' गायब था, इसे अब सही कर दिया गया है
+    return await db.query(
+      'document_doubts', 
+      where: 'society_id = ?', 
+      whereArgs: [societyId], 
+      orderBy: 'id DESC'
+    );
   }
 
   // किसी स्पेसिफिक डाउट को हटाने के लिए (अगर यूजर ने गड़बड़ी चेक करके ठीक कर दी हो)
