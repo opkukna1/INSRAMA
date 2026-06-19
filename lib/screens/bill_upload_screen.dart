@@ -1,7 +1,7 @@
 // lib/screens/bill_upload_screen.dart
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import '../database/db_helper.dart'; // आपका मौजूदा डेटाबेस हेल्पर
+import '../database/db_helper.dart'; 
 import '../services/ai_service.dart';
 
 class BillUploadScreen extends StatefulWidget {
@@ -14,19 +14,16 @@ class BillUploadScreen extends StatefulWidget {
 class _BillUploadScreenState extends State<BillUploadScreen> {
   final _apiKeyController = TextEditingController();
   
-  // 🚀 फिक्स: यहाँ डिफ़ॉल्ट रूप से 'gemini-1.5-flash-lite-preview' सेट कर दिया है
   String _selectedModel = "gemini-1.5-flash-lite-preview"; 
   
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
   
-  // बैच प्रोसेसिंग का स्टेट (Progress Tracking)
   bool _isLoading = false;
   int _totalFiles = 0;
   int _processedFiles = 0;
   String _currentFileName = "";
   
-  // इस बार एक नहीं, बल्कि पूरी लिस्ट सेव करेंगे ताकि स्क्रीन पर दिखा सकें
   List<Map<String, dynamic>> _processedBatchData = [];
 
   @override
@@ -45,7 +42,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
     });
   }
 
-  // बैच प्रोसेसिंग फंक्शन
   void _pickAndProcessMultipleBills() async {
     if (_selectedSocietyId == null) {
       _showSnackBar("कृपया पहले 'समिति प्रबंधन' स्क्रीन पर जाकर एक समिति जोड़ें।");
@@ -81,14 +77,22 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
             });
 
             try {
+              // 1. PDF से टेक्स्ट निकालें
               String extractedText = await AIService.extractTextFromPdf(file.path!);
               
+              // 🔥 नया चेक: अगर PDF खाली है या स्कैन की हुई फोटो है
+              if (extractedText.trim().isEmpty) {
+                throw Exception("PDF में कोई टेक्स्ट नहीं मिला! (क्या यह स्कैन की हुई फोटो है?)");
+              }
+              
+              // 2. AI से प्रोसेस कराएं
               Map<String, dynamic> aiResult = await AIService.processBillWithGemini(
                 pdfText: extractedText,
                 apiKey: _apiKeyController.text,
                 modelName: _selectedModel,
               );
 
+              // 3. डेटाबेस के लिए डेटा तैयार करें
               Map<String, dynamic> billRow = {
                 'society_id': _selectedSocietyId,
                 'bill_no': aiResult['bill_no'],
@@ -102,19 +106,22 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                 'cattle_feed_deduction': aiResult['cattle_feed_deduction'] ?? 0.0,
               };
 
+              // 4. डेटाबेस में सेव करें
               await DatabaseHelper.instance.insertMilkBill(billRow);
 
               setState(() {
                 _processedBatchData.add(aiResult);
               });
 
+              // API की लिमिट से बचने के लिए 3 सेकंड का ब्रेक
               if (i < result.files.length - 1) {
                 await Future.delayed(const Duration(seconds: 3));
               }
 
             } catch (e) {
               print("${file.name} में एरर: $e");
-              _showSnackBar("त्रुटि: ${file.name} प्रोसेस नहीं हो सका।");
+              // 🚀 यहाँ अब आपको स्क्रीन पर असली एरर दिखेगा!
+              _showSnackBar("त्रुटि (${file.name}): $e"); 
             }
           }
         }
@@ -123,16 +130,21 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
           _isLoading = false;
         });
 
-        _showSnackBar("🎉 कुल $_totalFiles में से ${_processedBatchData.length} बिल सफलतापूर्वक प्रोसेस और सेव हो गए!");
+        if (_processedBatchData.isNotEmpty) {
+           _showSnackBar("🎉 कुल $_totalFiles में से ${_processedBatchData.length} बिल सफलतापूर्वक प्रोसेस हो गए!");
+        }
       }
     } catch (e) {
       setState(() { _isLoading = false; });
-      _showSnackBar("त्रुटि: $e");
+      _showSnackBar("सिस्टम त्रुटि: $e");
     }
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 4))
+    );
   }
 
   @override
@@ -181,7 +193,6 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
                   DropdownButtonFormField<String>(
                     value: _selectedModel,
                     decoration: const InputDecoration(border: OutlineInputBorder(), labelText: "Model Name"),
-                    // 🚀 फिक्स: ड्रॉपडाउन में सही मॉडल के नाम अपडेट कर दिए
                     items: [
                       "gemini-1.5-flash-lite-preview",
                       "gemini-1.5-flash", 
