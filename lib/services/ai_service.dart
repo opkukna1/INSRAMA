@@ -25,12 +25,11 @@ class AIService {
   static Future<Map<String, dynamic>> processBillWithGemini({
     required String pdfText,
     required String apiKey,
-    // यहाँ डिफ़ॉल्ट रूप से Gemini 3.1 Flash Lite Preview सेट कर दिया है
-    String modelName = 'gemini-3.1-flash-lite-preview', 
+    // 🔥 यहाँ सही डिफ़ॉल्ट मॉडल सेट कर दिया गया है
+    String modelName = 'gemini-1.5-flash-lite-preview', 
   }) async {
     try {
-      // 🔥 v2 मेथड: Schema डिफाइन करना (Structured Outputs)
-      // यह जेमिनी को सटीक JSON फॉर्मेट देने के लिए बाध्य करता है
+      // v2 मेथड: Schema डिफाइन करना (Structured Outputs)
       final responseSchema = Schema.object(
         properties: {
           "bill_no": Schema.string(description: "Extract bill number or unique id"),
@@ -50,20 +49,22 @@ class AIService {
         ],
       );
 
+      // 🚀 स्मार्ट API वर्शन सेलेक्टर 
+      // अगर मॉडल के नाम में 'preview' है तो v1alpha यूज़ करेगा, वरना v1beta
+      String apiVersion = modelName.contains('preview') ? 'v1alpha' : 'v1beta';
+
       // जेमिनी मॉडल इनिशियलाइज़ करें
       final model = GenerativeModel(
         model: modelName, 
         apiKey: apiKey,
-        // 🚀 Preview मॉडल्स के लिए API वर्शन को ओवरराइड करना ज़रूरी है
-        // 'v1alpha' का इस्तेमाल सबसे नए preview मॉडल्स को एक्सेस करने के लिए होता है
-        requestOptions: const RequestOptions(apiVersion: 'v1alpha'), 
+        // डायनामिक API वर्शन पास किया गया है
+        requestOptions: RequestOptions(apiVersion: apiVersion), 
         generationConfig: GenerationConfig(
           responseMimeType: "application/json",
-          responseSchema: responseSchema, // नया v2 स्ट्रक्चर्ड आउटपुट तरीका
+          responseSchema: responseSchema, 
         ),
       );
 
-      // अब प्रॉम्प्ट एकदम छोटा और साफ हो गया है
       final prompt = '''
       You are an expert accountant for Indian Dairy Cooperative Societies. 
       Analyze the following text extracted from a fortnightly milk bill and extract the exact accounting values.
