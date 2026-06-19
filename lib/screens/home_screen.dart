@@ -71,7 +71,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      // 🚀 फिक्स 1: shadowColor हटाकर सीधे ओपेसिटी का इस्तेमाल किया
                       color: Colors.green.withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 6),
@@ -82,7 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
-                      cross         : CrossAxisAlignment.start,
+                      // 🚀 फिक्स: यहाँ 'cross' हटाकर सही नाम 'crossAxisAlignment' किया गया है
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'OPERATIONAL OVERVIEW',
@@ -136,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _buildPremiumMenuCard(
                     context,
-                    title: 'AI डाक्यूमेंट्स प्रोसेसिंग',
+                    title: 'AI डाक्यूमेंट्स Processing',
                     subtitle: 'Smart File Audit',
                     icon: Icons.auto_awesome_rounded,
                     gradientColors: [Colors.amber.shade900, Colors.orange.shade600],
@@ -241,11 +241,9 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                // 🚀 फिक्स 2: .between को बदलकर .spaceBetween किया
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
-                    // 🚀 फिक्स 3: .between को बदलकर .spaceBetween किया
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
