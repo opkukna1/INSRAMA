@@ -12,7 +12,8 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('ins_rama_accounting.db');
+    // 🚀 फिक्स 1: डेटाबेस का नाम बदल दिया ताकि नया फ्रेश डेटाबेस बने और पुरानी एरर खत्म हो
+    _database = await _initDB('ins_rama_v4.db'); 
     return _database!;
   }
 
@@ -30,11 +31,16 @@ class DatabaseHelper {
 
   // 3. टेबल बनाना (Societies और Bills दोनों के लिए)
   Future _createDB(Database db, int version) async {
-    // A. समिति (Society) की टेबल
+    // A. समिति (Society) की टेबल 
+    // 🔥 फिक्स 2: इसमें UI के हिसाब से सारे कॉलम (type, code, bank, ifsc) जोड़ दिए गए हैं
     await db.execute('''
       CREATE TABLE societies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL
+        name TEXT NOT NULL,
+        type TEXT,
+        code TEXT,
+        bank_account TEXT,
+        ifsc TEXT
       )
     ''');
 
