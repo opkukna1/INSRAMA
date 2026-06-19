@@ -16,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _societyCount = 0;
+  int _totalAlertsCount = 0; // 🌟 नया: कुल एक्टिव संदिग्ध गड़बड़ियों की संख्या
 
   @override
   void initState() {
@@ -23,10 +24,20 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadDashboardStats();
   }
 
+  // 🧮 डैशबोर्ड के आंकड़े डेटाबेस से लाइव लोड करना
   void _loadDashboardStats() async {
     final societies = await DatabaseHelper.instance.queryAllSocieties();
+    
+    int tempAlerts = 0;
+    // सभी समितियों में AI द्वारा पकड़े गए कुल लाइव डाउट्स की गणना
+    for (var society in societies) {
+      final doubts = await DatabaseHelper.instance.getDoubtsBySociety(society['id']);
+      tempAlerts += doubts.length;
+    }
+
     setState(() {
       _societyCount = societies.length;
+      _totalAlertsCount = tempAlerts;
     });
   }
 
@@ -58,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. स्टेट्स बैनर
+              // 1. स्टेट्स बैनर (Operational Overview)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
@@ -81,7 +92,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
-                      // 🚀 फिक्स: यहाँ 'cross' हटाकर सही नाम 'crossAxisAlignment' किया गया है
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
@@ -117,14 +127,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 14),
 
-              // 2. ग्रिड लेआउट
+              // 2. कोर मॉड्युल्स ग्रिड लेआउट
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 2,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
-                childAspectRatio: 1.1, 
+                childAspectRatio: 1.15, // 🚀 फिक्स: छोटे स्क्रीन पर ओवरफ्लो से बचने के लिए अनुपात सुधारा
                 children: [
                   _buildPremiumMenuCard(
                     context,
@@ -136,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _buildPremiumMenuCard(
                     context,
-                    title: 'AI डाक्यूमेंट्स Processing',
+                    title: 'AI डाक्यूमेंट्स',
                     subtitle: 'Smart File Audit',
                     icon: Icons.auto_awesome_rounded,
                     gradientColors: [Colors.amber.shade900, Colors.orange.shade600],
@@ -161,16 +171,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               
+              // 3. फॉरेंसिक ऑडिट रिपोर्ट्स (🌟 लाइव अलर्ट काउंट बैज के साथ)
               _buildPremiumMenuCard(
                 context,
                 title: 'फॉरेंसिक ऑडिट रिपोर्ट्स (AI Alerts)',
-                subtitle: 'AI द्वारा पकड़ी गई संदिग्ध वित्तीय हेराफेरी और कमियां देखें',
+                subtitle: _totalAlertsCount > 0 
+                    ? '⚠️ सिस्टम में $_totalAlertsCount वित्तीय विसंगतियां जांची जानी शेष हैं'
+                    : '✅ सभी वित्तीय दस्तावेज सहकारी मानकों के अनुसार सुरक्षित हैं',
                 icon: Icons.gavel_rounded,
                 gradientColors: [Colors.red.shade800, Colors.red.shade600],
                 targetScreen: const AuditReportScreen(),
                 isFullWidth: true,
+                badgeValue: _totalAlertsCount > 0 ? _totalAlertsCount : null,
               ),
             ],
           ),
@@ -179,6 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // प्रीमियम मेनू कार्ड बिल्डर विज़ेट
   Widget _buildPremiumMenuCard(
     BuildContext context, {
     required String title,
@@ -187,19 +202,20 @@ class _HomeScreenState extends State<HomeScreen> {
     required List<Color> gradientColors,
     required Widget targetScreen,
     bool isFullWidth = false,
+    int? badgeValue, // 🌟 नया: ऑडिट विसंगति अलर्ट दिखाने के लिए ऑप्शनल बैज संख्या
   }) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context, 
           MaterialPageRoute(builder: (context) => targetScreen)
-        ).then((_) => _loadDashboardStats());
+        ).then((_) => _loadDashboardStats()); // वापस आने पर आँकड़े स्वतः रीलोड होंगे
       },
       splashColor: gradientColors[0].withValues(alpha: 0.3),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         width: isFullWidth ? double.infinity : null,
-        height: isFullWidth ? 95 : null,
+        height: isFullWidth ? 100 : null,
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -232,11 +248,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                         const SizedBox(height: 2),
-                        Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                        Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                  const SizedBox(width: 8),
+                  // यदि अलर्ट्स हैं तो चमकदार लाल/सफ़ेद बैज दिखाएं
+                  if (badgeValue != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '$badgeValue Alerts',
+                        style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.w900, fontSize: 12),
+                      ),
+                    )
+                  else
+                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
                 ],
               )
             : Column(
@@ -252,32 +283,35 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(icon, size: 24, color: Colors.white),
+                        child: Icon(icon, size: 22, color: Colors.white),
                       ),
-                      const Icon(Icons.north_east_rounded, color: Colors.white60, size: 18),
+                      const Icon(Icons.north_east_rounded, color: Colors.white60, size: 16),
                     ],
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white70, fontSize: 11),
-                      ),
-                    ],
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-        ),
+      ),
     );
   }
 }
