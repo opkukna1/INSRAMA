@@ -1,3 +1,4 @@
+// lib/screens/accounts_screen.dart
 import 'package:flutter/material.dart';
 import '../database/db_helper.dart';
 
@@ -13,17 +14,18 @@ class _AccountsScreenState extends State<AccountsScreen> {
   int? _selectedSocietyId;
   bool _isLoading = false;
 
-  // एकाउंटिंग वेरिएबल्स (Aggregated Totals)
-  double _totalMilk = 0.0;
-  double _milkSalesSangh = 0.0; // संघ को दूध बिक्री (आय)
-  double _totalOverhead = 0.0;  // कमीशन (आय)
-  double _totalHeadLoad = 0.0;  // हेड लोड भत्ता (आय)
-  double _gheeDeductions = 0.0; // घी कटौती
-  double _feedDeductions = 0.0; // पशु आहार कटौती
+  // 📊 डायनामिक एकाउंटिंग वेरिएबल्स
+  List<Map<String, dynamic>> _incomeItems = [];
+  List<Map<String, dynamic>> _expenseItems = [];
+  List<Map<String, dynamic>> _assetItems = [];
+  List<Map<String, dynamic>> _liabilityItems = [];
 
-  // परिकलित (Calculated) मूल्य
-  double _estimatedMilkPurchaseMembers = 0.0; // सदस्यों से दूध खरीद (व्यय)
-  double _netSurplus = 0.0; // शुद्ध लाभ/बचत
+  double _totalIncome = 0.0;
+  double _totalExpense = 0.0;
+  double _netProfit = 0.0;
+
+  double _totalAssets = 0.0;
+  double _totalLiabilities = 0.0;
 
   @override
   void initState() {
@@ -31,7 +33,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     _loadSocieties();
   }
 
-  // डेटाबेस से समितियों की सूची लाना
+  // 1. डेटाबेस से समितियों की सूची लाना
   void _loadSocieties() async {
     final data = await DatabaseHelper.instance.queryAllSocieties();
     setState(() {
@@ -43,39 +45,57 @@ class _AccountsScreenState extends State<AccountsScreen> {
     });
   }
 
-  // लोकल डेटाबेस से बिलों का योग निकालना
+  // 2. 🚀 मास्टर लेज़र से सारा डेटा निकालकर P&L और Balance Sheet बनाना
   void _calculateFinancials(int societyId) async {
     setState(() { _isLoading = true; });
     
-    final bills = await DatabaseHelper.instance.queryBillsBySociety(societyId);
+    // मास्टर लेज़र से सारा डेटा मँगवाना
+    final ledgerData = await DatabaseHelper.instance.getMasterLedger(societyId);
     
-    double milk = 0.0;
-    double sales = 0.0;
-    double overhead = 0.0;
-    double headLoad = 0.0;
-    double ghee = 0.0;
-    double feed = 0.0;
+    List<Map<String, dynamic>> tempIncome = [];
+    List<Map<String, dynamic>> tempExpense = [];
+    List<Map<String, dynamic>> tempAsset = [];
+    List<Map<String, dynamic>> tempLiability = [];
 
-    for (var bill in bills) {
-      milk += (bill['total_milk'] ?? 0.0) as double;
-      sales += (bill['milk_payment'] ?? 0.0) as double;
-      overhead += (bill['overhead'] ?? 0.0) as double;
-      headLoad += (bill['head_load'] ?? 0.0) as double;
-      ghee += (bill['ghee_deduction'] ?? 0.0) as double;
-      feed += (bill['cattle_feed_deduction'] ?? 0.0) as double;
+    double tIncome = 0.0;
+    double tExpense = 0.0;
+    double tAsset = 0.0;
+    double tLiability = 0.0;
+
+    // हर एंट्री को उसकी कैटेगरी के हिसाब से अलग-अलग करना
+    for (var entry in ledgerData) {
+      double amount = entry['amount'] ?? 0.0;
+      String category = entry['category'] ?? '';
+
+      if (category == 'Income') {
+        tempIncome.add(entry);
+        tIncome += amount;
+      } else if (category == 'Expense') {
+        tempExpense.add(entry);
+        tExpense += amount;
+      } else if (category == 'Asset') {
+        tempAsset.add(entry);
+        tAsset += amount;
+      } else if (category == 'Liability') {
+        tempLiability.add(entry);
+        tLiability += amount;
+      }
     }
 
     setState(() {
-      _totalMilk = milk;
-      _milkSalesSangh = sales;
-      _totalOverhead = overhead;
-      _totalHeadLoad = headLoad;
-      _gheeDeductions = ghee;
-      _feedDeductions = feed;
+      _incomeItems = tempIncome;
+      _expenseItems = tempExpense;
+      _assetItems = tempAsset;
+      _liabilityItems = tempLiability;
 
-      // सहकारी नियम: संघ की बिक्री में से कमीशन और खर्चे निकालकर सदस्यों की खरीद तय होती है
-      _estimatedMilkPurchaseMembers = _milkSalesSangh - _totalOverhead; 
-      _netSurplus = (_milkSalesSangh + _totalOverhead + _totalHeadLoad) - _estimatedMilkPurchaseMembers;
+      _totalIncome = tIncome;
+      _totalExpense = tExpense;
+      
+      // शुद्ध लाभ (Net Profit) = कुल आय - कुल व्यय
+      _netProfit = _totalIncome - _totalExpense;
+
+      _totalAssets = tAsset;
+      _totalLiabilities = tLiability;
       
       _isLoading = false;
     });
@@ -87,7 +107,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('📊 वित्तीय खाते एवं विवरण'),
+          title: const Text('📊 वित्तीय खाते (AI Audited)'),
           backgroundColor: Colors.green.shade700,
           foregroundColor: Colors.white,
           bottom: const TabBar(
@@ -101,35 +121,44 @@ class _AccountsScreenState extends State<AccountsScreen> {
           ),
         ),
         body: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(12.0),
           child: Column(
             children: [
               // सोसाइटी ड्रॉपडाउन
-              Row(
-                children: [
-                  const Text("समिति चुनें: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButton<int>(
-                      value: _selectedSocietyId,
-                      isExpanded: true,
-                      items: _societies.map((s) {
-                        return DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name']));
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() { _selectedSocietyId = val; });
-                          _calculateFinancials(val);
-                        }
-                      },
-                    ),
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.business, color: Colors.green),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _selectedSocietyId,
+                            isExpanded: true,
+                            hint: const Text("समिति चुनें"),
+                            items: _societies.map((s) {
+                              return DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold)));
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() { _selectedSocietyId = val; });
+                                _calculateFinancials(val);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               
               _isLoading 
-                ? const Center(child: CircularProgressIndicator(color: Colors.green))
+                ? const Expanded(child: Center(child: CircularProgressIndicator(color: Colors.green)))
                 : Expanded(
                     child: TabBarView(
                       children: [
@@ -145,78 +174,93 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  // 1. आय-व्यय खाता व्यू (Income & Expenditure Table)
+  // ==========================================
+  // 1. आय-व्यय खाता व्यू (P&L Tab)
+  // ==========================================
   Widget _buildIncomeExpenseTab() {
     return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Text(
-                "कुल संकलित दूध: ${_totalMilk.toStringAsFixed(2)} लीटर", 
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green)
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Table(
-            border: TableBorder.all(color: Colors.grey.shade300),
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Table(
+            border: TableBorder.all(color: Colors.grey.shade300, width: 1),
             columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1)},
             children: [
-              _tableHeaderRow("व्यय / भुगतान (Expenditure)", "राशि (₹)"),
-              _tableDataRow("दुग्ध क्रय (सदस्यों को भुगतान)", _estimatedMilkPurchaseMembers),
-              _tableDataRow("विविध व्यय (स्टेशनरी/अन्य)", 260.00), // ऑडिट रिपोर्ट आधारित फिक्स मानक
-              _tableHeaderRow("आय / प्राप्तियां (Income)", "राशि (₹)"),
-              _tableDataRow("दुग्ध विक्रय (दुग्ध संघ को)", _milkSalesSangh),
-              _tableDataRow("लाभांश/कमीशन खाता", _totalOverhead),
-              _tableDataRow("हेड लोड (परिवहन भत्ता)", _totalHeadLoad),
-              const TableRow(children: [TableCell(child: SizedBox(height: 10)), TableCell(child: SizedBox(height: 10))]),
-              _tableHeaderRow("शुद्ध बचत / लाभ (Net Profit)", _netSurplus),
+              // --- आय (INCOME) ---
+              _tableSectionHeader("आय / प्राप्तियां (Income)"),
+              ..._incomeItems.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
+              _tableSubTotalRow("कुल आय (Total Income)", _totalIncome, Colors.green.shade50),
+
+              const TableRow(children: [TableCell(child: SizedBox(height: 16)), TableCell(child: SizedBox(height: 16))]),
+
+              // --- व्यय (EXPENSE) ---
+              _tableSectionHeader("व्यय / भुगतान (Expenditure)"),
+              ..._expenseItems.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
+              _tableSubTotalRow("कुल व्यय (Total Expense)", _totalExpense, Colors.red.shade50),
+
+              const TableRow(children: [TableCell(child: SizedBox(height: 16)), TableCell(child: SizedBox(height: 16))]),
+
+              // --- शुद्ध लाभ/हानि (NET PROFIT) ---
+              _tableFinalTotalRow(
+                _netProfit >= 0 ? "शुद्ध बचत / लाभ (Net Profit)" : "शुद्ध हानि (Net Loss)", 
+                _netProfit.abs(),
+                _netProfit >= 0 ? Colors.green.shade700 : Colors.red.shade700
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  // 2. तुलन पत्र व्यू (Balance Sheet Table)
+  // ==========================================
+  // 2. तुलन पत्र व्यू (Balance Sheet Tab)
+  // ==========================================
   Widget _buildBalanceSheetTab() {
-    // ऑडिट रिपोर्ट के मानकों के अनुसार स्वचालित बैलेंस शीट गणना
-    double shareCapital = 2000.00; // बेस शेयर कैपिटल मानक
-    double cashInHand = 7538.18;   // क्लोजिंग कैश बैलेंस मानक
-    double bankBalance = 1292.00;   // बैंक बैलेंस मानक
-    double liabilitiesTotal = shareCapital + _gheeDeductions;
-    double assetsTotal = cashInHand + bankBalance;
+    double totalLiabilitiesSide = _totalLiabilities + _netProfit;
 
     return SingleChildScrollView(
-      child: Table(
-        border: TableBorder.all(color: Colors.grey.shade300),
-        columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1)},
-        children: [
-          _tableHeaderRow("दायित्व (Liabilities)", "राशि (₹)"),
-          _tableDataRow("सदस्य हिस्सा राशि (Share Capital)", shareCapital),
-          _tableDataRow("दुग्ध राशि देय बकाया (Deductions)", _gheeDeductions + _feedDeductions),
-          _tableHeaderRow("कुल देयताएं (Total)", liabilitiesTotal),
-          _tableHeaderRow("सम्पत्तियां (Assets)", "राशि (₹)"),
-          _tableDataRow("हस्तस्थ रोकड़ (Cash in Hand)", cashInHand),
-          _tableDataRow("बैंक बचत खाता अवशेष", bankBalance),
-          _tableDataRow("डेड स्टॉक / कैन खाता", 1400.00),
-          _tableHeaderRow("कुल सम्पत्तियां (Total)", assetsTotal + 1400.00),
-        ],
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Table(
+            border: TableBorder.all(color: Colors.grey.shade300, width: 1),
+            columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1)},
+            children: [
+              // --- दायित्व (LIABILITIES) ---
+              _tableSectionHeader("दायित्व (Liabilities)"),
+              ..._liabilityItems.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
+              // लाभ को दायित्व (Liabilities) साइड में जोड़ा जाता है (Retained Earnings)
+              _tableDataRow("इस अवधि का शुद्ध लाभ (Net Profit)", _netProfit),
+              _tableSubTotalRow("कुल देयताएं (Total Liabilities)", totalLiabilitiesSide, Colors.blue.shade50),
+
+              const TableRow(children: [TableCell(child: SizedBox(height: 16)), TableCell(child: SizedBox(height: 16))]),
+
+              // --- सम्पत्तियां (ASSETS) ---
+              _tableSectionHeader("सम्पत्तियां (Assets)"),
+              ..._assetItems.map((item) => _tableDataRow(item['particulars'] ?? 'Unknown', item['amount'])),
+              _tableSubTotalRow("कुल सम्पत्तियां (Total Assets)", _totalAssets, Colors.blue.shade50),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  TableRow _tableHeaderRow(String title, dynamic val) {
-    String displayVal = val is double ? "₹ ${val.toStringAsFixed(2)}" : val.toString();
+  // ==========================================
+  // Table UI Helpers (UI डिज़ाइन के लिए)
+  // ==========================================
+  
+  TableRow _tableSectionHeader(String title) {
     return TableRow(
-      decoration: BoxDecoration(color: Colors.grey.shade200),
+      decoration: BoxDecoration(color: Colors.grey.shade800),
       children: [
-        Padding(padding: const EdgeInsets.all(8.0), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
-        Padding(padding: const EdgeInsets.all(8.0), child: Text(displayVal, style: const TextStyle(fontWeight: FontWeight.bold))),
+        Padding(padding: const EdgeInsets.all(10.0), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15))),
+        const Padding(padding: EdgeInsets.all(10.0), child: Text("राशि (₹)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15), textAlign: TextAlign.right)),
       ],
     );
   }
@@ -224,8 +268,28 @@ class _AccountsScreenState extends State<AccountsScreen> {
   TableRow _tableDataRow(String title, double val) {
     return TableRow(
       children: [
-        Padding(padding: const EdgeInsets.all(8.0), child: Text(title)),
-        Padding(padding: const EdgeInsets.all(8.0), child: Text("₹ ${val.toStringAsFixed(2)}")),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0), child: Text(title, style: const TextStyle(fontSize: 14))),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 14))),
+      ],
+    );
+  }
+
+  TableRow _tableSubTotalRow(String title, double val, Color bgColor) {
+    return TableRow(
+      decoration: BoxDecoration(color: bgColor),
+      children: [
+        Padding(padding: const EdgeInsets.all(10.0), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
+        Padding(padding: const EdgeInsets.all(10.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
+      ],
+    );
+  }
+
+  TableRow _tableFinalTotalRow(String title, double val, Color textColor) {
+    return TableRow(
+      decoration: BoxDecoration(color: Colors.grey.shade200),
+      children: [
+        Padding(padding: const EdgeInsets.all(12.0), child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor))),
+        Padding(padding: const EdgeInsets.all(12.0), child: Text("₹ ${val.toStringAsFixed(2)}", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor))),
       ],
     );
   }
