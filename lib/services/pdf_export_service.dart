@@ -23,7 +23,7 @@ class PdfExportService {
             // 1. Receipts & Payments
             pw.Text("1. Receipts & Payments Account", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             _buildTShapeTable(
-              leftHeader: "Receipts", rightHeader: "Payments",
+              leftHeader: "Receipts (प्राप्तियां)", rightHeader: "Payments (भुगतान)",
               leftItems: engine.receipts, rightItems: engine.payments,
               leftTotal: engine.totalReceipts, rightTotal: engine.totalPayments,
               balancingLabelRight: "Closing Balance (Difference)", balancingAmountRight: engine.closingCashBal
@@ -35,8 +35,9 @@ class PdfExportService {
             _buildTShapeTable(
               leftHeader: "Particulars (Dr.)", rightHeader: "Particulars (Cr.)",
               leftItems: engine.tradingDr, rightItems: engine.tradingCr,
-              leftTotal: max(engine.tradingDr.fold(0, (s, i) => s + i.amount) + engine.grossProfit, engine.tradingCr.fold(0, (s, i) => s + i.amount)),
-              rightTotal: max(engine.tradingDr.fold(0, (s, i) => s + i.amount) + engine.grossProfit, engine.tradingCr.fold(0, (s, i) => s + i.amount)),
+              // 🔥 फिक्स: 0 को 0.0 में बदल दिया गया है ताकि Type Error न आए
+              leftTotal: max(engine.tradingDr.fold(0.0, (s, i) => s + i.amount) + engine.grossProfit, engine.tradingCr.fold(0.0, (s, i) => s + i.amount)),
+              rightTotal: max(engine.tradingDr.fold(0.0, (s, i) => s + i.amount) + engine.grossProfit, engine.tradingCr.fold(0.0, (s, i) => s + i.amount)),
               balancingLabelLeft: engine.grossProfit >= 0 ? "Gross Profit (c/d)" : null,
               balancingAmountLeft: engine.grossProfit >= 0 ? engine.grossProfit : null,
               balancingLabelRight: engine.grossProfit < 0 ? "Gross Loss (c/d)" : null,
@@ -50,8 +51,9 @@ class PdfExportService {
               leftHeader: "Particulars (Dr.)", rightHeader: "Particulars (Cr.)",
               leftItems: engine.pnlDr, 
               rightItems: [LedgerItem(name: "Gross Profit (b/d)", amount: engine.grossProfit, category: "")]..addAll(engine.pnlCr),
-              leftTotal: engine.pnlDr.fold(0, (s, i) => s + i.amount) + (engine.netProfit > 0 ? engine.netProfit : 0),
-              rightTotal: engine.pnlDr.fold(0, (s, i) => s + i.amount) + (engine.netProfit > 0 ? engine.netProfit : 0), // Both sides equal
+              // 🔥 फिक्स: यहाँ भी 0 को 0.0 कर दिया गया है
+              leftTotal: engine.pnlDr.fold(0.0, (s, i) => s + i.amount) + (engine.netProfit > 0 ? engine.netProfit : 0.0),
+              rightTotal: engine.pnlDr.fold(0.0, (s, i) => s + i.amount) + (engine.netProfit > 0 ? engine.netProfit : 0.0), // Both sides equal
               balancingLabelLeft: engine.netProfit >= 0 ? "Net Profit" : null,
               balancingAmountLeft: engine.netProfit >= 0 ? engine.netProfit : null,
             ),
@@ -60,7 +62,7 @@ class PdfExportService {
             // 4. Balance Sheet
             pw.Text("4. Balance Sheet", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             _buildTShapeTable(
-              leftHeader: "Liabilities", rightHeader: "Assets",
+              leftHeader: "Liabilities (दायित्व)", rightHeader: "Assets (सम्पत्तियां)",
               leftItems: engine.liabilities, rightItems: engine.assets,
               leftTotal: engine.balanceSheetTotals['Total Liabilities']!, 
               rightTotal: engine.balanceSheetTotals['Total Assets']!,
