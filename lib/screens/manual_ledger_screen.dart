@@ -1,14 +1,16 @@
 // lib/screens/manual_ledger_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../engine/accounting_engine.dart';
 import '../services/pdf_export_service.dart';
 import '../database/db_helper.dart';
 
-// 🚀 स्मार्ट आइटम मॉडल जो UI और Accounting Engine को जोड़ेगा
 class SmartItem {
   String name;
   String group;
-  String engineCategory; // 'Core_Dr', 'Expense', 'Income', 'Asset', 'Liability' etc.
+  String engineCategory;
   bool isActive;
   double amount;
 
@@ -28,13 +30,12 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
   String selectedSocietyType = "Milk"; 
   String selectedYear = "2024-25";      
   
-  final List<String> societyTypes = ["Milk", "Women", "GSS"];
-  final List<String> years = ["2024-25", "2025-26", "2026-27"];
+  final List<String> societyTypes = ["Milk", "Women", "GSS", "Agriculture"];
+  final List<String> years = ["2023-24", "2024-25", "2025-26", "2026-27"];
 
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
 
-  // 🌟 आपकी 14-Groups वाली मास्टर लिस्ट
   List<SmartItem> allItems = [];
   Map<String, List<SmartItem>> groupedItems = {};
 
@@ -47,50 +48,66 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
 
   void _initMasterData() {
     allItems = [
-      // 1. MILK BUSINESS
-      SmartItem(name: "Milk Purchase", group: "1. Milk Business", engineCategory: "Core_Dr"),
-      SmartItem(name: "Milk Sale", group: "1. Milk Business", engineCategory: "Core_Cr"),
-      SmartItem(name: "Milk Collection Charges", group: "1. Milk Business", engineCategory: "Core_Dr"),
-      SmartItem(name: "Transport Charges", group: "1. Milk Business", engineCategory: "Core_Dr"),
-      // 2. FEED BUSINESS
-      SmartItem(name: "Feed Purchase", group: "2. Feed Business", engineCategory: "Core_Dr"),
-      SmartItem(name: "Feed Sale", group: "2. Feed Business", engineCategory: "Core_Cr"),
-      SmartItem(name: "Feed Transport", group: "2. Feed Business", engineCategory: "Core_Dr"),
-      // 3. GHEE & SEED BUSINESS
-      SmartItem(name: "Ghee Purchase", group: "3. Ghee & Seed Business", engineCategory: "Core_Dr"),
-      SmartItem(name: "Ghee Sale", group: "3. Ghee & Seed Business", engineCategory: "Core_Cr"),
-      SmartItem(name: "Seed Purchase", group: "3. Ghee & Seed Business", engineCategory: "Core_Dr"),
-      SmartItem(name: "Seed Sale", group: "3. Ghee & Seed Business", engineCategory: "Core_Cr"),
-      // 4. STOCK (Opening / Closing)
-      SmartItem(name: "Opening Stock (Milk/Feed)", group: "4. Opening/Closing Stock", engineCategory: "Trading_Dr_Only"),
-      SmartItem(name: "Closing Stock (Milk/Feed)", group: "4. Opening/Closing Stock", engineCategory: "Trading_Cr_Asset"),
-      // 5. ADMINISTRATIVE EXPENSES
-      SmartItem(name: "Salary / Honorarium", group: "5. Administrative Expenses", engineCategory: "Expense"),
-      SmartItem(name: "Electricity / Water", group: "5. Administrative Expenses", engineCategory: "Expense"),
-      SmartItem(name: "Audit Fees", group: "5. Administrative Expenses", engineCategory: "Expense"),
-      SmartItem(name: "Stationery & Printing", group: "5. Administrative Expenses", engineCategory: "Expense"),
-      SmartItem(name: "Bank Charges", group: "5. Administrative Expenses", engineCategory: "Expense"),
-      // 6. REPAIR & MAINTENANCE
-      SmartItem(name: "Building Repair", group: "6. Repair & Maintenance", engineCategory: "Expense"),
-      SmartItem(name: "Vehicle/Can Repair", group: "6. Repair & Maintenance", engineCategory: "Expense"),
-      // 7. OTHER INCOME
-      SmartItem(name: "Bank/FD Interest Received", group: "7. Other Income", engineCategory: "Income"),
-      SmartItem(name: "Commission Received", group: "7. Other Income", engineCategory: "Income"),
-      SmartItem(name: "Membership/Admission Fee", group: "7. Other Income", engineCategory: "Income"),
-      // 8. FIXED ASSETS & DEPRECIATION
-      SmartItem(name: "Building / Furniture", group: "8. Fixed Assets", engineCategory: "Asset"),
-      SmartItem(name: "Computers & Equipments", group: "8. Fixed Assets", engineCategory: "Asset"),
-      SmartItem(name: "Depreciation (All Assets)", group: "8. Fixed Assets", engineCategory: "Expense_NonCash"),
-      // 9. CURRENT ASSETS (Cash & Bank)
-      SmartItem(name: "Opening Cash/Bank Bal", group: "9. Cash & Bank (Current Assets)", engineCategory: "Opening_Bal"),
-      SmartItem(name: "Closing Cash in Hand", group: "9. Cash & Bank (Current Assets)", engineCategory: "Cash_Asset"),
-      SmartItem(name: "Closing Bank Balance", group: "9. Cash & Bank (Current Assets)", engineCategory: "Cash_Asset"),
-      // 10. CAPITAL & LIABILITIES
-      SmartItem(name: "Share Capital", group: "10. Capital & Liabilities", engineCategory: "Liability"),
-      SmartItem(name: "Reserve Funds", group: "10. Capital & Liabilities", engineCategory: "Liability"),
-      SmartItem(name: "Loan Outstanding", group: "10. Capital & Liabilities", engineCategory: "Liability"),
-    ];
+      // 1. BUY (खरीद)
+      SmartItem(name: "Milk Buy", group: "1. BUY (खरीद)", engineCategory: "Core_Dr"),
+      SmartItem(name: "Ghee Buy", group: "1. BUY (खरीद)", engineCategory: "Core_Dr"),
+      SmartItem(name: "Feed Buy", group: "1. BUY (खरीद)", engineCategory: "Core_Dr"),
+      SmartItem(name: "Sweet Buy", group: "1. BUY (खरीद)", engineCategory: "Core_Dr"),
 
+      // 2. SELL (बिक्री)
+      SmartItem(name: "Milk Sell", group: "2. SELL (बिक्री)", engineCategory: "Core_Cr"),
+      SmartItem(name: "Ghee Sell", group: "2. SELL (बिक्री)", engineCategory: "Core_Cr"),
+      SmartItem(name: "Feed Sell", group: "2. SELL (बिक्री)", engineCategory: "Core_Cr"),
+      SmartItem(name: "Sweet Sell", group: "2. SELL (बिक्री)", engineCategory: "Core_Cr"),
+
+      // 3. EXPENSES (खर्चे)
+      SmartItem(name: "Salary", group: "3. EXPENSES (खर्चे)", engineCategory: "Expense"),
+      SmartItem(name: "Electricity", group: "3. EXPENSES (खर्चे)", engineCategory: "Expense"),
+      SmartItem(name: "Audit Fees", group: "3. EXPENSES (खर्चे)", engineCategory: "Expense"),
+      SmartItem(name: "Stationary & Printing", group: "3. EXPENSES (खर्चे)", engineCategory: "Expense"),
+      SmartItem(name: "Repairs & Maint.", group: "3. EXPENSES (खर्चे)", engineCategory: "Expense"),
+      SmartItem(name: "Transport Charges", group: "3. EXPENSES (खर्चे)", engineCategory: "Direct_Expense"), // Trading Dr
+
+      // 4. INCOME (आय)
+      SmartItem(name: "Commission Received", group: "4. INCOME (आय)", engineCategory: "Income"),
+      SmartItem(name: "Head Load Recovery", group: "4. INCOME (आय)", engineCategory: "Income"),
+      SmartItem(name: "Overheads Recovery", group: "4. INCOME (आय)", engineCategory: "Income"),
+      SmartItem(name: "Interest Received", group: "4. INCOME (आय)", engineCategory: "Income"),
+
+      // 5. RECEIPTS (नकद प्राप्तियां)
+      SmartItem(name: "Share Capital Received", group: "5. RECEIPTS (प्राप्तियां)", engineCategory: "Receipt_Liability"),
+      SmartItem(name: "Loan Received", group: "5. RECEIPTS (प्राप्तियां)", engineCategory: "Receipt_Liability"),
+      SmartItem(name: "Advance Recovery", group: "5. RECEIPTS (प्राप्तियां)", engineCategory: "Receipt_Only"),
+
+      // 6. PAYMENTS (नकद भुगतान)
+      SmartItem(name: "Asset Purchase", group: "6. PAYMENTS (भुगतान)", engineCategory: "Payment_Asset"),
+      SmartItem(name: "Loan Repayment", group: "6. PAYMENTS (भुगतान)", engineCategory: "Payment_Only"),
+      SmartItem(name: "FD Deposit", group: "6. PAYMENTS (भुगतान)", engineCategory: "Payment_Asset"),
+
+      // 7. ASSETS (सम्पत्तियां)
+      SmartItem(name: "Building & Machines", group: "7. ASSETS (सम्पत्तियां)", engineCategory: "Asset"),
+      SmartItem(name: "Furniture", group: "7. ASSETS (सम्पत्तियां)", engineCategory: "Asset"),
+      SmartItem(name: "Debtors (लेनदारी)", group: "7. ASSETS (सम्पत्तियां)", engineCategory: "Asset"),
+
+      // 8. LIABILITIES (दायित्व)
+      SmartItem(name: "Creditors (देनदारी)", group: "8. LIABILITIES (दायित्व)", engineCategory: "Liability"),
+      SmartItem(name: "Payables (बकाया खर्चे)", group: "8. LIABILITIES (दायित्व)", engineCategory: "Liability"),
+
+      // 9. STOCKS (स्टॉक)
+      SmartItem(name: "Opening Stock", group: "9. STOCKS (स्टॉक)", engineCategory: "Opening_Stock"),
+      SmartItem(name: "Closing Stock", group: "9. STOCKS (स्टॉक)", engineCategory: "Closing_Stock"),
+      SmartItem(name: "Stock Loss / Theft", group: "9. STOCKS (स्टॉक)", engineCategory: "Stock_Loss"),
+
+      // 10. PREVIOUS YEAR (गत वर्ष)
+      SmartItem(name: "Previous Year Profit", group: "10. PREVIOUS YEAR (गत वर्ष)", engineCategory: "Prev_Profit"),
+      SmartItem(name: "Previous Year Loss", group: "10. PREVIOUS YEAR (गत वर्ष)", engineCategory: "Prev_Loss"),
+
+      // 11. DEPRECIATION (मूल्यह्रास)
+      SmartItem(name: "Depreciation", group: "11. DEPRECIATION (मूल्यह्रास)", engineCategory: "Depreciation"),
+
+      // 12. OPENING CASH (प्रारम्भिक रोकड़)
+      SmartItem(name: "Opening Cash & Bank", group: "12. OPENING CASH", engineCategory: "Opening_Cash"),
+    ];
     _groupItems();
   }
 
@@ -113,7 +130,6 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
     });
   }
 
-  // 🚀 कस्टम आइटम (Custom Item) जोड़ने का डायलॉग
   void _showCustomItemDialog() {
     String newName = "";
     double newAmount = 0;
@@ -124,7 +140,7 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text("नया कस्टम आइटम जोड़ें", style: TextStyle(fontWeight: FontWeight.bold)),
+            title: const Text("कस्टम आइटम जोड़ें", style: TextStyle(fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -147,8 +163,7 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
                 onPressed: () {
                   if (newName.isNotEmpty) {
                     setState(() {
-                      var newItem = SmartItem(name: newName, group: "11. Custom Added Items", engineCategory: selectedCategory, isActive: true, amount: newAmount);
-                      allItems.add(newItem);
+                      allItems.add(SmartItem(name: newName, group: "13. CUSTOM ITEMS", engineCategory: selectedCategory, isActive: true, amount: newAmount));
                       _groupItems();
                     });
                     Navigator.pop(dialogContext);
@@ -163,41 +178,33 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
     );
   }
 
-  // 🚀 डेटाबेस में सेव करना
-  void _saveToDatabase() async {
-    if (_selectedSocietyId == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("डेटाबेस में सेव किया जा रहा है...")));
-
-    // सिर्फ एक्टिव आइटम्स को सेव करें
-    for (var item in allItems.where((i) => i.isActive && i.amount > 0)) {
-      String type = (item.engineCategory.contains('Cr') || item.engineCategory == 'Income' || item.engineCategory.contains('Liability') || item.engineCategory == 'Opening_Bal') ? 'CREDIT' : 'DEBIT';
-      String dbCat = 'Expense';
-      if (item.engineCategory.contains('Asset')) dbCat = 'Asset';
-      if (item.engineCategory.contains('Liability')) dbCat = 'Liability';
-      if (item.engineCategory == 'Income' || item.engineCategory.contains('Cr') || item.engineCategory == 'Opening_Bal') dbCat = 'Income';
-
-      await DatabaseHelper.instance.insertLedgerEntry({
-        'society_id': _selectedSocietyId,
-        'date': DateTime.now().toIso8601String().split('T')[0],
-        'particulars': item.name,
-        'amount': item.amount,
-        'type': type,
-        'category': dbCat,
-        'doc_type': 'Manual Ledger',
-        'is_manual': 1 
-      });
+  // 🚀 Excel/CSV Export Feature
+  Future<void> _exportToCSV() async {
+    List<SmartItem> activeItems = allItems.where((i) => i.isActive && i.amount > 0).toList();
+    if (activeItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("एक्सपोर्ट करने के लिए कोई डेटा नहीं है!")));
+      return;
     }
 
-    if (!mounted) return;
-    Navigator.pop(context); 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ रिकॉर्ड्स सफलतापूर्वक लोकल DB में सेव हो गए हैं!")));
+    String csvData = "Group,Item Name,Category,Amount\n";
+    for (var item in activeItems) {
+      csvData += '"${item.group}","${item.name}","${item.engineCategory}",${item.amount}\n';
+    }
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final path = "${directory.path}/Manual_Ledger_$selectedYear.csv";
+      final file = File(path);
+      await file.writeAsString(csvData);
+
+      await Share.shareXFiles([XFile(path)], text: "Manual Ledger Data for $selectedYear");
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error Exporting CSV: $e")));
+    }
   }
 
-  // 🚀 Generate Accounts & T-Shape Logic
   void _generateAndShareAccounts() {
     engine.items.clear();
-    
-    // सिर्फ टॉगल ON वाले आइटम्स को इंजन में डालें
     List<SmartItem> activeItems = allItems.where((i) => i.isActive && i.amount > 0).toList();
     
     if (activeItems.isEmpty) {
@@ -219,7 +226,7 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
-        height: MediaQuery.of(context).size.height * 0.7,
+        height: MediaQuery.of(context).size.height * 0.75,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -244,14 +251,15 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
 
             const Spacer(),
             
+            // 🚀 Action Buttons
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-                    icon: const Icon(Icons.save),
-                    label: const Text("Save to DB"),
-                    onPressed: _saveToDatabase,
+                    icon: const Icon(Icons.table_chart),
+                    label: const Text("CSV Excel"),
+                    onPressed: _exportToCSV, // 🌟 नया CSV एक्सपोर्ट फंक्शन
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -276,7 +284,9 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    List<String> groupKeys = groupedItems.keys.toList()..sort();
+    // Keys को Sort करने के लिए कस्टम लॉजिक ताकि '10.', '11.' सही जगह आएं
+    List<String> groupKeys = groupedItems.keys.toList()
+      ..sort((a, b) => int.parse(a.split('.')[0]).compareTo(int.parse(b.split('.')[0])));
 
     return Scaffold(
       appBar: AppBar(
