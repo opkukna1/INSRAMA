@@ -17,7 +17,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
   List<Map<String, dynamic>> _allLedgerData = []; 
-  List<Map<String, dynamic>> _filteredLedgerData = []; 
+  List<Map<String, dynamic>> _filteredLedgerData = []; // 🔥 फिक्स: सही वेरिएबल नाम
   bool _isLoading = false;
   
   final TextEditingController _searchController = TextEditingController(); 
@@ -62,7 +62,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
     if (!mounted) return;
     setState(() {
       _allLedgerData = data;
-      _LedgerData = data; 
+      _filteredLedgerData = data; // 🔥 फिक्स 
       _searchController.clear(); 
       _isLoading = false;
     });
@@ -70,13 +70,13 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
 
   void _filterLedger(String query) {
     if (query.isEmpty) {
-      setState(() => _LedgerData = _allLedgerData);
+      setState(() => _filteredLedgerData = _allLedgerData); // 🔥 फिक्स
       return;
     }
     
     final lowercaseQuery = query.toLowerCase();
     setState(() {
-      _LedgerData = _allLedgerData.where((row) {
+      _filteredLedgerData = _allLedgerData.where((row) { // 🔥 फिक्स
         final particulars = (row['particulars'] ?? '').toString().toLowerCase();
         final head = (row['account_head'] ?? '').toString().toLowerCase();
         final headHindi = (_headNamesHindi[head] ?? '').toLowerCase();
@@ -132,7 +132,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
                     decoration: InputDecoration(
                       labelText: 'वैधानिक खाता हेड',
                       filled: true,
-                      fillColor: Colors.amber.shade50.withOpacity(0.5), // 🔥 फिक्स
+                      fillColor: Colors.amber.shade50.withOpacity(0.5), 
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     items: _headNamesHindi.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
@@ -176,13 +176,13 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
   }
 
   void _exportToExcelAndShare() async {
-    if (_LedgerData.isEmpty) return;
+    if (_filteredLedgerData.isEmpty) return; // 🔥 फिक्स
     try {
       var excel = Excel.createExcel();
       Sheet sheetObject = excel['Master Ledger'];
       
       sheetObject.appendRow([TextCellValue('Date'), TextCellValue('Particulars'), TextCellValue('Amount')]);
-      for (var row in _LedgerData) {
+      for (var row in _filteredLedgerData) { // 🔥 फिक्स
         sheetObject.appendRow([TextCellValue(row['date'].toString()), TextCellValue(row['particulars'].toString()), DoubleCellValue(row['amount'])]);
       }
       
@@ -203,7 +203,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
         title: const Text('📊 मास्टर लेज़र'),
         backgroundColor: Colors.green.shade800,
         actions: [
-          IconButton(icon: const Icon(Icons.share_rounded), onPressed: _exportToExcelAndShare), // 🔥 फिक्स
+          IconButton(icon: const Icon(Icons.share_rounded), onPressed: _exportToExcelAndShare), 
         ],
       ),
       body: Column(
@@ -213,7 +213,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
             child: DropdownButton<int>(
               value: _selectedSocietyId,
               isExpanded: true,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 15), // 🔥 फिक्स
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 15), 
               items: _societies.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name']))).toList(),
               onChanged: (val) {
                 setState(() => _selectedSocietyId = val);
@@ -225,7 +225,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : InteractiveViewer( 
-                    constrained: false, // 🔥 फिक्स
+                    constrained: false, 
                     child: DataTable(
                       border: TableBorder.all(color: Colors.grey.shade200),
                       columns: const [
@@ -234,7 +234,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
                         DataColumn(label: Text('Amount')),
                         DataColumn(label: Text('Action')),
                       ],
-                      rows: _LedgerData.map((row) {
+                      rows: _filteredLedgerData.map((row) { // 🔥 फिक्स
                         return DataRow(cells: [
                           DataCell(Text(row['date'] ?? '')),
                           DataCell(Text(row['particulars'] ?? '')),
