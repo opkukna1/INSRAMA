@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import '../engine/accounting_engine.dart';
 
 class ManualLedgerScreen extends StatefulWidget {
+  const ManualLedgerScreen({super.key});
+
   @override
-  _ManualLedgerScreenState createState() => _ManualLedgerScreenState();
+  State<ManualLedgerScreen> createState() => _ManualLedgerScreenState();
 }
 
 class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
@@ -22,55 +24,66 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
     engine.initializeDefaultItems();
   }
 
-  // नया आइटम जोड़ने का पॉपअप
-  void _showAddCustomItemDialog() {
+  // 🚀 फिक्स: फंक्शन का नाम सही कर दिया गया है और StatefulBuilder जोड़ दिया गया है
+  void _showCustomItemDialog() {
     String newName = "";
     double newAmount = 0;
     String selectedCategory = "Expense"; // Default
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Add Custom Ledger Item"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(labelText: "Item Name (e.g. Tea Exp)"),
-                onChanged: (val) => newName = val,
-              ),
-              TextField(
-                decoration: InputDecoration(labelText: "Amount (₹)"),
-                keyboardType: TextInputType.number,
-                onChanged: (val) => newAmount = double.tryParse(val) ?? 0,
-              ),
-              DropdownButton<String>(
-                value: selectedCategory,
-                isExpanded: true,
-                items: ["Income", "Expense", "Core_Dr", "Core_Cr", "Asset", "Liability"]
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (val) => setState(() => selectedCategory = val!),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context), 
-              child: Text("Cancel")
+      builder: (dialogContext) {
+        // StatefulBuilder डायलॉग के अंदर की स्टेट (जैसे ड्रॉपडाउन) को अपडेट करने के लिए जरूरी है
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text("Add Custom Ledger Item"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  decoration: const InputDecoration(labelText: "Item Name (e.g. Tea Exp)"),
+                  onChanged: (val) => newName = val,
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: "Amount (₹)"),
+                  keyboardType: TextInputType.number,
+                  onChanged: (val) => newAmount = double.tryParse(val) ?? 0,
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Select Category'),
+                  items: ["Income", "Expense", "Core_Dr", "Core_Cr", "Asset", "Liability"]
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (val) {
+                    // setDialogState से सिर्फ डायलॉग का UI रिफ्रेश होगा
+                    setDialogState(() => selectedCategory = val!);
+                  },
+                ),
+              ],
             ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  engine.addCustomItem(newName, newAmount, selectedCategory);
-                });
-                Navigator.pop(context);
-              },
-              child: Text("Add & Save"),
-            )
-          ],
-        );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext), 
+                child: const Text("Cancel")
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                onPressed: () {
+                  if (newName.isNotEmpty) {
+                    setState(() {
+                      engine.addCustomItem(newName, newAmount, selectedCategory);
+                    });
+                    Navigator.pop(dialogContext);
+                  }
+                },
+                child: const Text("Add & Save"),
+              )
+            ],
+          );
+        });
       }
     );
   }
@@ -82,35 +95,44 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
 
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))
+      ),
       builder: (context) {
         return Container(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("📊 Automatic Accounts Prepared!", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
-              Divider(),
-              Text("1. Gross Profit (Trading A/c): ₹$gp", style: TextStyle(fontSize: 16)),
-              Text("2. Net Profit (P&L A/c): ₹$np", style: TextStyle(fontSize: 16)),
-              SizedBox(height: 10),
-              Text("3. Balance Sheet Totals:", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("   Liabilities Side: ₹${bs['Total Liabilities']}"),
-              Text("   Assets Side: ₹${bs['Total Assets']}"),
+              const Text("📊 Automatic Accounts Prepared!", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
+              const Divider(),
+              Text("1. Gross Profit (Trading A/c): ₹$gp", style: const TextStyle(fontSize: 16)),
+              Text("2. Net Profit (P&L A/c): ₹$np", style: const TextStyle(fontSize: 16)),
+              const SizedBox(height: 10),
+              const Text("3. Balance Sheet Totals:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text("   Liabilities Side: ₹${bs['Total Liabilities']}", style: const TextStyle(fontSize: 15)),
+              Text("   Assets Side: ₹${bs['Total Assets']}", style: const TextStyle(fontSize: 15)),
+              const SizedBox(height: 10),
               if(bs['Total Liabilities'] == bs['Total Assets'])
-                 Text("✅ Balance Sheet Matched Perfectly!", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-              Spacer(),
+                 const Text("✅ Balance Sheet Matched Perfectly!", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16))
+              else
+                 const Text("⚠️ Balance Sheet Mismatch. Please check entries.", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+              
+              const Spacer(),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton.icon(
-                    icon: Icon(Icons.picture_as_pdf),
-                    label: Text("Download PDF"),
-                    onPressed: () { /* Add 'pdf' package logic here */ },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text("PDF"),
+                    onPressed: () { /* TODO: Add PDF logic */ },
                   ),
                   ElevatedButton.icon(
-                    icon: Icon(Icons.table_chart),
-                    label: Text("Download Excel"),
-                    onPressed: () { /* Add 'excel' package logic here */ },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
+                    icon: const Icon(Icons.table_chart),
+                    label: const Text("Excel"),
+                    onPressed: () { /* TODO: Add Excel logic */ },
                   ),
                 ],
               )
@@ -124,24 +146,30 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Manual Ledger Entry")),
+      appBar: AppBar(
+        title: const Text("Manual Ledger Entry"),
+        backgroundColor: Colors.green.shade800,
+        foregroundColor: Colors.white,
+      ),
       body: ListView.builder(
-        padding: EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         itemCount: engine.items.length,
         itemBuilder: (context, index) {
           final item = engine.items[index];
           return Card(
+            elevation: 2,
+            margin: const EdgeInsets.symmetric(vertical: 6),
             child: ListTile(
-              title: Text(item.name, style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("Category: ${item.category}"),
-              trailing: Container(
-                width: 120,
+              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text("Category: ${item.category}", style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+              trailing: SizedBox(
+                width: 130,
                 child: TextField(
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     prefixText: "₹ ",
                     border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8)
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0)
                   ),
                   onChanged: (val) {
                     item.amount = double.tryParse(val) ?? 0;
@@ -157,17 +185,19 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
         children: [
           FloatingActionButton(
             heroTag: "addBtn",
-            backgroundColor: Colors.blue,
-            child: Icon(Icons.add),
-            onPressed: _showCustomItemDialog,
+            backgroundColor: Colors.blue.shade700,
+            foregroundColor: Colors.white,
+            onPressed: _showCustomItemDialog, // 🔥 फिक्स: सही नाम कॉल किया गया
             tooltip: "Add Custom Item",
+            child: const Icon(Icons.add),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 12),
           FloatingActionButton.extended(
             heroTag: "genBtn",
-            backgroundColor: Colors.green,
-            icon: Icon(Icons.receipt_long),
-            label: Text("Generate Accounts"),
+            backgroundColor: Colors.green.shade800,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.receipt_long),
+            label: const Text("Generate Accounts", style: TextStyle(fontWeight: FontWeight.bold)),
             onPressed: _generateAccounts,
           ),
         ],
