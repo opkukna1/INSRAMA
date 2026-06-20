@@ -1,8 +1,19 @@
 // lib/screens/manual_ledger_screen.dart
 import 'package:flutter/material.dart';
 import '../engine/accounting_engine.dart';
-import '../services/pdf_export_service.dart'; // 🚀 PDF सर्विस जोड़ी गई
-import '../database/db_helper.dart'; // 🚀 डेटाबेस सेव करने के लिए
+import '../services/pdf_export_service.dart';
+import '../database/db_helper.dart';
+
+// 🚀 स्मार्ट आइटम मॉडल जो UI और Accounting Engine को जोड़ेगा
+class SmartItem {
+  String name;
+  String group;
+  String engineCategory; // 'Core_Dr', 'Expense', 'Income', 'Asset', 'Liability' etc.
+  bool isActive;
+  double amount;
+
+  SmartItem({required this.name, required this.group, required this.engineCategory, this.isActive = false, this.amount = 0.0});
+}
 
 class ManualLedgerScreen extends StatefulWidget {
   const ManualLedgerScreen({super.key});
@@ -20,15 +31,77 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
   final List<String> societyTypes = ["Milk", "Women", "GSS"];
   final List<String> years = ["2024-25", "2025-26", "2026-27"];
 
-  // डेटाबेस से समितियां लोड करने के लिए
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
+
+  // 🌟 आपकी 14-Groups वाली मास्टर लिस्ट
+  List<SmartItem> allItems = [];
+  Map<String, List<SmartItem>> groupedItems = {};
 
   @override
   void initState() {
     super.initState();
-    engine.initializeDefaultItems();
+    _initMasterData();
     _loadSocieties();
+  }
+
+  void _initMasterData() {
+    allItems = [
+      // 1. MILK BUSINESS
+      SmartItem(name: "Milk Purchase", group: "1. Milk Business", engineCategory: "Core_Dr"),
+      SmartItem(name: "Milk Sale", group: "1. Milk Business", engineCategory: "Core_Cr"),
+      SmartItem(name: "Milk Collection Charges", group: "1. Milk Business", engineCategory: "Core_Dr"),
+      SmartItem(name: "Transport Charges", group: "1. Milk Business", engineCategory: "Core_Dr"),
+      // 2. FEED BUSINESS
+      SmartItem(name: "Feed Purchase", group: "2. Feed Business", engineCategory: "Core_Dr"),
+      SmartItem(name: "Feed Sale", group: "2. Feed Business", engineCategory: "Core_Cr"),
+      SmartItem(name: "Feed Transport", group: "2. Feed Business", engineCategory: "Core_Dr"),
+      // 3. GHEE & SEED BUSINESS
+      SmartItem(name: "Ghee Purchase", group: "3. Ghee & Seed Business", engineCategory: "Core_Dr"),
+      SmartItem(name: "Ghee Sale", group: "3. Ghee & Seed Business", engineCategory: "Core_Cr"),
+      SmartItem(name: "Seed Purchase", group: "3. Ghee & Seed Business", engineCategory: "Core_Dr"),
+      SmartItem(name: "Seed Sale", group: "3. Ghee & Seed Business", engineCategory: "Core_Cr"),
+      // 4. STOCK (Opening / Closing)
+      SmartItem(name: "Opening Stock (Milk/Feed)", group: "4. Opening/Closing Stock", engineCategory: "Trading_Dr_Only"),
+      SmartItem(name: "Closing Stock (Milk/Feed)", group: "4. Opening/Closing Stock", engineCategory: "Trading_Cr_Asset"),
+      // 5. ADMINISTRATIVE EXPENSES
+      SmartItem(name: "Salary / Honorarium", group: "5. Administrative Expenses", engineCategory: "Expense"),
+      SmartItem(name: "Electricity / Water", group: "5. Administrative Expenses", engineCategory: "Expense"),
+      SmartItem(name: "Audit Fees", group: "5. Administrative Expenses", engineCategory: "Expense"),
+      SmartItem(name: "Stationery & Printing", group: "5. Administrative Expenses", engineCategory: "Expense"),
+      SmartItem(name: "Bank Charges", group: "5. Administrative Expenses", engineCategory: "Expense"),
+      // 6. REPAIR & MAINTENANCE
+      SmartItem(name: "Building Repair", group: "6. Repair & Maintenance", engineCategory: "Expense"),
+      SmartItem(name: "Vehicle/Can Repair", group: "6. Repair & Maintenance", engineCategory: "Expense"),
+      // 7. OTHER INCOME
+      SmartItem(name: "Bank/FD Interest Received", group: "7. Other Income", engineCategory: "Income"),
+      SmartItem(name: "Commission Received", group: "7. Other Income", engineCategory: "Income"),
+      SmartItem(name: "Membership/Admission Fee", group: "7. Other Income", engineCategory: "Income"),
+      // 8. FIXED ASSETS & DEPRECIATION
+      SmartItem(name: "Building / Furniture", group: "8. Fixed Assets", engineCategory: "Asset"),
+      SmartItem(name: "Computers & Equipments", group: "8. Fixed Assets", engineCategory: "Asset"),
+      SmartItem(name: "Depreciation (All Assets)", group: "8. Fixed Assets", engineCategory: "Expense_NonCash"),
+      // 9. CURRENT ASSETS (Cash & Bank)
+      SmartItem(name: "Opening Cash/Bank Bal", group: "9. Cash & Bank (Current Assets)", engineCategory: "Opening_Bal"),
+      SmartItem(name: "Closing Cash in Hand", group: "9. Cash & Bank (Current Assets)", engineCategory: "Cash_Asset"),
+      SmartItem(name: "Closing Bank Balance", group: "9. Cash & Bank (Current Assets)", engineCategory: "Cash_Asset"),
+      // 10. CAPITAL & LIABILITIES
+      SmartItem(name: "Share Capital", group: "10. Capital & Liabilities", engineCategory: "Liability"),
+      SmartItem(name: "Reserve Funds", group: "10. Capital & Liabilities", engineCategory: "Liability"),
+      SmartItem(name: "Loan Outstanding", group: "10. Capital & Liabilities", engineCategory: "Liability"),
+    ];
+
+    _groupItems();
+  }
+
+  void _groupItems() {
+    groupedItems.clear();
+    for (var item in allItems) {
+      if (!groupedItems.containsKey(item.group)) {
+        groupedItems[item.group] = [];
+      }
+      groupedItems[item.group]!.add(item);
+    }
   }
 
   void _loadSocieties() async {
@@ -36,13 +109,11 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
     if (!mounted) return;
     setState(() {
       _societies = data;
-      if (_societies.isNotEmpty) {
-        _selectedSocietyId = _societies.first['id'];
-      }
+      if (_societies.isNotEmpty) _selectedSocietyId = _societies.first['id'];
     });
   }
 
-  // 🚀 नया आइटम जोड़ने का डायलॉग (जिससे पहले एरर आ रहा था)
+  // 🚀 कस्टम आइटम (Custom Item) जोड़ने का डायलॉग
   void _showCustomItemDialog() {
     String newName = "";
     double newAmount = 0;
@@ -57,26 +128,15 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  decoration: const InputDecoration(labelText: "आइटम का नाम (उदा. चाय खर्च)"),
-                  onChanged: (val) => newName = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: "राशि (₹)"),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) => newAmount = double.tryParse(val) ?? 0,
-                ),
+                TextField(decoration: const InputDecoration(labelText: "आइटम का नाम"), onChanged: (val) => newName = val),
+                TextField(decoration: const InputDecoration(labelText: "राशि (₹)"), keyboardType: TextInputType.number, onChanged: (val) => newAmount = double.tryParse(val) ?? 0),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   value: selectedCategory,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'खाता श्रेणी (Category)'),
-                  items: ["Income", "Expense", "Core_Dr", "Core_Cr", "Asset", "Liability"]
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (val) {
-                    setDialogState(() => selectedCategory = val!);
-                  },
+                  decoration: const InputDecoration(labelText: 'खाता श्रेणी'),
+                  items: ["Income", "Expense", "Core_Dr", "Core_Cr", "Asset", "Liability"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  onChanged: (val) => setDialogState(() => selectedCategory = val!),
                 ),
               ],
             ),
@@ -87,7 +147,9 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
                 onPressed: () {
                   if (newName.isNotEmpty) {
                     setState(() {
-                      engine.addCustomItem(newName, newAmount, selectedCategory);
+                      var newItem = SmartItem(name: newName, group: "11. Custom Added Items", engineCategory: selectedCategory, isActive: true, amount: newAmount);
+                      allItems.add(newItem);
+                      _groupItems();
                     });
                     Navigator.pop(dialogContext);
                   }
@@ -101,48 +163,52 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
     );
   }
 
-  // 🚀 लोकल डेटाबेस (SQLite) में सेव करने का लॉजिक
+  // 🚀 डेटाबेस में सेव करना
   void _saveToDatabase() async {
-    if (_selectedSocietyId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("कृपया पहले समिति चुनें!")));
-      return;
-    }
-
+    if (_selectedSocietyId == null) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("डेटाबेस में सेव किया जा रहा है...")));
 
-    for (var item in engine.items) {
-      if (item.amount > 0) {
-        // क्रेडिट/डेबिट तय करना
-        String type = (item.category.contains('Cr') || item.category == 'Income' || item.category.contains('Liability') || item.category == 'Opening_Bal') ? 'CREDIT' : 'DEBIT';
-        
-        // मास्टर लेज़र की मुख्य कैटेगरी तय करना
-        String dbCat = 'Expense';
-        if (item.category.contains('Asset')) dbCat = 'Asset';
-        if (item.category.contains('Liability')) dbCat = 'Liability';
-        if (item.category == 'Income' || item.category.contains('Cr') || item.category == 'Opening_Bal') dbCat = 'Income';
+    // सिर्फ एक्टिव आइटम्स को सेव करें
+    for (var item in allItems.where((i) => i.isActive && i.amount > 0)) {
+      String type = (item.engineCategory.contains('Cr') || item.engineCategory == 'Income' || item.engineCategory.contains('Liability') || item.engineCategory == 'Opening_Bal') ? 'CREDIT' : 'DEBIT';
+      String dbCat = 'Expense';
+      if (item.engineCategory.contains('Asset')) dbCat = 'Asset';
+      if (item.engineCategory.contains('Liability')) dbCat = 'Liability';
+      if (item.engineCategory == 'Income' || item.engineCategory.contains('Cr') || item.engineCategory == 'Opening_Bal') dbCat = 'Income';
 
-        Map<String, dynamic> row = {
-          'society_id': _selectedSocietyId,
-          'date': DateTime.now().toIso8601String().split('T')[0],
-          'particulars': item.name,
-          'amount': item.amount,
-          'type': type,
-          'category': dbCat,
-          'doc_type': 'Manual Ledger',
-          'is_manual': 1 // 1 = मुनीम द्वारा हाथ से डाला गया
-        };
-        
-        await DatabaseHelper.instance.insertLedgerEntry(row);
-      }
+      await DatabaseHelper.instance.insertLedgerEntry({
+        'society_id': _selectedSocietyId,
+        'date': DateTime.now().toIso8601String().split('T')[0],
+        'particulars': item.name,
+        'amount': item.amount,
+        'type': type,
+        'category': dbCat,
+        'doc_type': 'Manual Ledger',
+        'is_manual': 1 
+      });
     }
 
     if (!mounted) return;
-    Navigator.pop(context); // बॉटम शीट बंद करें
+    Navigator.pop(context); 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ रिकॉर्ड्स सफलतापूर्वक लोकल DB में सेव हो गए हैं!")));
   }
 
-  // 🚀 4 अकाउंट जेनरेट और शेयर करने का UI
+  // 🚀 Generate Accounts & T-Shape Logic
   void _generateAndShareAccounts() {
+    engine.items.clear();
+    
+    // सिर्फ टॉगल ON वाले आइटम्स को इंजन में डालें
+    List<SmartItem> activeItems = allItems.where((i) => i.isActive && i.amount > 0).toList();
+    
+    if (activeItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("कृपया कोई आइटम चालू (Toggle ON) करें और राशि भरें!")));
+      return;
+    }
+
+    for (var item in activeItems) {
+      engine.addCustomItem(item.name, item.amount, item.engineCategory);
+    }
+
     double gp = engine.grossProfit;
     double np = engine.netProfit;
     var bs = engine.balanceSheetTotals;
@@ -160,37 +226,24 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
             const Text("📊 4-Stage Automated Accounts", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
             const Divider(),
             
-            // 1. Receipts & Payments Summary
             Text("1. Cash/Bank Closing Bal: ₹${engine.closingCashBal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            // 2. Trading Summary
             Text("2. Gross Profit (Trading): ₹${gp.toStringAsFixed(2)}", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            // 3. P&L Summary
             Text("3. Net Profit (P&L): ₹${np.toStringAsFixed(2)}", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            // 4. Balance Sheet Check
             const Text("4. Balance Sheet Match Check:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             Text("   Liabilities Total: ₹${bs['Total Liabilities']?.toStringAsFixed(2)}"),
             Text("   Assets Total: ₹${bs['Total Assets']?.toStringAsFixed(2)}"),
             
             const SizedBox(height: 10),
             if (bs['Total Liabilities'] == bs['Total Assets'])
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.green.shade50,
-                child: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width:8), Text("Balance Sheet Tally Passed!", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))]),
-              )
+              Container(padding: const EdgeInsets.all(8), color: Colors.green.shade50, child: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width:8), Text("Balance Sheet Tally Passed!", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))]))
             else
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.red.shade50,
-                child: const Row(children: [Icon(Icons.warning, color: Colors.red), SizedBox(width:8), Text("Mismatch! Check entries.", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))]),
-              ),
+              Container(padding: const EdgeInsets.all(8), color: Colors.red.shade50, child: const Row(children: [Icon(Icons.warning, color: Colors.red), SizedBox(width:8), Text("Mismatch! Check closing cash/stock.", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))])),
 
             const Spacer(),
             
-            // एक्शन बटन्स (Save & PDF)
             Row(
               children: [
                 Expanded(
@@ -208,10 +261,7 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
                     icon: const Icon(Icons.picture_as_pdf),
                     label: const Text("T-Shape PDF"),
                     onPressed: () {
-                      String societyName = _societies.isNotEmpty && _selectedSocietyId != null 
-                        ? _societies.firstWhere((s) => s['id'] == _selectedSocietyId)['name'] 
-                        : "Society";
-                      // 🚀 असली T-Shape PDF जनरेटर को कॉल करना
+                      String societyName = _societies.isNotEmpty && _selectedSocietyId != null ? _societies.firstWhere((s) => s['id'] == _selectedSocietyId)['name'] : "Society";
                       PdfExportService.generateAndShareManualAccounts(engine, societyName, selectedYear);
                     },
                   ),
@@ -226,15 +276,16 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    List<String> groupKeys = groupedItems.keys.toList()..sort();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("मैन्युअल लेज़र एंट्री"),
+        title: const Text("स्मार्ट मैन्युअल लेज़र"),
         backgroundColor: Colors.green.shade800,
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // टॉप फ़िल्टर बार (Society, Type, Year)
           Container(
             color: Colors.grey.shade100,
             padding: const EdgeInsets.all(12.0),
@@ -242,7 +293,7 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
               children: [
                 DropdownButtonFormField<int>(
                   value: _selectedSocietyId,
-                  decoration: const InputDecoration(labelText: "समिति चुनें", border: OutlineInputBorder(), isDense: true),
+                  decoration: const InputDecoration(labelText: "समिति चुनें", border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
                   items: _societies.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name']))).toList(),
                   onChanged: (val) => setState(() => _selectedSocietyId = val),
                 ),
@@ -251,14 +302,14 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
                   children: [
                     Expanded(child: DropdownButtonFormField<String>(
                       value: selectedSocietyType,
-                      decoration: const InputDecoration(labelText: "समिति का प्रकार", border: OutlineInputBorder(), isDense: true),
+                      decoration: const InputDecoration(labelText: "समिति का प्रकार", border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
                       items: societyTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                       onChanged: (val) => setState(() => selectedSocietyType = val!),
                     )),
                     const SizedBox(width: 10),
                     Expanded(child: DropdownButtonFormField<String>(
                       value: selectedYear,
-                      decoration: const InputDecoration(labelText: "ऑडिट वर्ष", border: OutlineInputBorder(), isDense: true),
+                      decoration: const InputDecoration(labelText: "ऑडिट वर्ष", border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
                       items: years.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                       onChanged: (val) => setState(() => selectedYear = val!),
                     )),
@@ -268,30 +319,54 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
             ),
           ),
           
-          // एंट्री लिस्ट
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.only(bottom: 80),
-              itemCount: engine.items.length,
+              itemCount: groupKeys.length,
               itemBuilder: (context, index) {
-                final item = engine.items[index];
+                String groupName = groupKeys[index];
+                List<SmartItem> items = groupedItems[groupName]!;
+                bool anyActive = items.any((i) => i.isActive);
+
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: ListTile(
-                    title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: Text(item.category, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                    trailing: SizedBox(
-                      width: 120, 
-                      child: TextField(
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          prefixText: "₹ ", 
-                          border: OutlineInputBorder(),
-                          isDense: true,
+                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  elevation: anyActive ? 3 : 1,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: anyActive ? Colors.green.shade300 : Colors.transparent)),
+                  child: ExpansionTile(
+                    initiallyExpanded: anyActive,
+                    title: Text(groupName, style: TextStyle(fontWeight: FontWeight.bold, color: anyActive ? Colors.green.shade800 : Colors.black87)),
+                    children: items.map((item) {
+                      return Container(
+                        color: item.isActive ? Colors.green.shade50 : Colors.transparent,
+                        child: SwitchListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                          title: Text(item.name, style: TextStyle(fontSize: 14, fontWeight: item.isActive ? FontWeight.bold : FontWeight.normal)),
+                          value: item.isActive,
+                          activeColor: Colors.green.shade700,
+                          onChanged: (val) {
+                            setState(() {
+                              item.isActive = val;
+                              if (!val) item.amount = 0.0;
+                            });
+                          },
+                          secondary: SizedBox(
+                            width: 130, 
+                            child: TextField(
+                              enabled: item.isActive,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                prefixText: "₹ ", 
+                                border: const OutlineInputBorder(),
+                                isDense: true,
+                                fillColor: item.isActive ? Colors.white : Colors.grey.shade200,
+                                filled: true,
+                              ),
+                              onChanged: (v) => item.amount = double.tryParse(v) ?? 0
+                            )
+                          ),
                         ),
-                        onChanged: (v) => item.amount = double.tryParse(v) ?? 0
-                      )
-                    ),
+                      );
+                    }).toList(),
                   ),
                 );
               },
@@ -315,8 +390,8 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
             heroTag: "genBtn",
             backgroundColor: Colors.green.shade800,
             foregroundColor: Colors.white,
-            icon: const Icon(Icons.receipt_long),
-            label: const Text("Generate Accounts"),
+            icon: const Icon(Icons.auto_awesome_mosaic_rounded),
+            label: const Text("Generate Accounts", style: TextStyle(fontWeight: FontWeight.bold)),
             onPressed: _generateAndShareAccounts,
           ),
         ],
