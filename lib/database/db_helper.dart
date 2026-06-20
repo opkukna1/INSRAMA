@@ -10,15 +10,36 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    // 🚀 वर्जन v8: फाइनल 4-अकाउंट सपोर्ट और मैपिंग के साथ
-    _database = await _initDB('ins_rama_v8.db'); 
+    // 🚀 वर्जन 2: नए 4-अकाउंट सपोर्ट और मैपिंग के साथ
+    _database = await _initDB('ins_rama_v2.db'); 
     return _database!;
   }
 
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    
+    // वर्जन 1 से 2 पर जाने के लिए onUpgrade सपोर्ट जोड़ा गया
+    return await openDatabase(
+      path, 
+      version: 2, 
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
+    );
+  }
+
+  // अगर पुराना डेटाबेस है, तो उसे नए वर्ज़न में अपग्रेड करना (क्रैश से बचाने के लिए)
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // यदि पुराने डेटाबेस में master_ledger है, तो उसे अपडेट करें या नया बनाएं
+      try {
+        await db.execute("ALTER TABLE master_ledger ADD COLUMN account_head TEXT;");
+        await db.execute("ALTER TABLE master_ledger ADD COLUMN is_manual INTEGER DEFAULT 0;");
+      } catch (e) {
+        // अगर टेबल नहीं है, तो कुछ न करें, onCreate उसे बना लेगा
+        print("Upgrade Log: Columns might already exist or table missing.");
+      }
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -34,7 +55,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // 2. Processed Files Table
+    // 2. Processed Files Table (AI Bills History)
     await db.execute('''
       CREATE TABLE processed_files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +66,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // 3. Master Ledger Table (🚀 अपग्रेडेड: account_head और is_manual के साथ)
+    // 3. Master Ledger Table (🚀 AI और Manual दोनों का संयुक्त डेटा)
     await db.execute('''
       CREATE TABLE master_ledger (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,12 +78,12 @@ class DatabaseHelper {
         category TEXT,      -- 'Income', 'Expense', 'Asset', 'Liability'
         doc_type TEXT,      -- 'Milk Bill', 'Voucher', 'Bank Statement', 'Other'
         reference_no TEXT,
-        account_head TEXT,  -- 🌟 नया: 'milk_purchase', 'milk_sales', 'establishment_expense', etc.
-        is_manual INTEGER DEFAULT 0 -- 🌟 नया: 0 = AI, 1 = हाथ से जोड़ी गई एंट्री
+        account_head TEXT,  -- 🌟 'milk_purchase', 'milk_sales', 'establishment_expense', etc.
+        is_manual INTEGER DEFAULT 0 -- 🌟 0 = AI, 1 = हाथ से जोड़ी गई एंट्री
       )
     ''');
 
-    // 4. Document Doubts Table
+    // 4. Document Doubts Table (AI Alerts)
     await db.execute('''
       CREATE TABLE document_doubts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,20 +176,16 @@ class DatabaseHelper {
     double netProfit = (grossProfit > 0 ? grossProfit : 0.0) + miscIncome - (establishmentExpense + auditFeeProvision);
 
     // 3. आय-व्यय खाता / कैश बुक (Receipts & Payments)
-    // प्रारम्भिक नकद (Opening Cash) अमूमन हिस्सा पूंजी या पिछले शेष से आता है, डिफ़ॉल्ट रूप से 0 या मैन्युअल एंट्री
     double openingCash = await sumByHead('opening_cash');
     
-    // कुल प्राप्तियां (Receipts) = पैसे का अंदर आना (CREDIT entries in cash/bank)
     final recRes = await db.rawQuery(
       "SELECT SUM(amount) as total FROM master_ledger WHERE society_id = ? AND type = 'CREDIT'", [societyId]);
     double totalReceipts = (recRes.first['total'] as num?)?.toDouble() ?? 0.0;
 
-    // कुल भुगतान (Payments) = पैसे का बाहर जाना (DEBIT entries)
     final payRes = await db.rawQuery(
       "SELECT SUM(amount) as total FROM master_ledger WHERE society_id = ? AND type = 'DEBIT'", [societyId]);
     double totalPayments = (payRes.first['total'] as num?)?.toDouble() ?? 0.0;
 
-    // अंतिम रोकड़ शेष (Closing Cash)
     double closingCash = (openingCash + totalReceipts) - totalPayments;
 
     // 4. संतुलन चित्र (Balance Sheet) की मदें
@@ -192,11 +209,50 @@ class DatabaseHelper {
     };
   }
 
-  // बाकी पुराने सोसायटी और डाउट्स के फंक्शन्स नीचे यथावत रहेंगे...
-  Future<int> insertSociety(Map<String, dynamic> row) async { final db = await database; return await db.insert('societies', row); }
-  Future<List<Map<String, dynamic>>> queryAllSocieties() async { final db = await database; return await db.query('societies', orderBy: 'id DESC'); }
-  Future<bool> isFileAlreadyProcessed(String hash) async { final db = await database; final res = await db.query('processed_files', where: 'file_hash = ?', whereArgs: [hash]); return res.isNotEmpty; }
-  Future<void> markFileAsProcessed(int societyId, String hash, String fileName) async { final db = await database; await db.insert('processed_files', {'society_id': societyId, 'file_hash': hash, 'file_name': fileName, 'process_date': DateTime.now().toIso8601String()}); }
-  Future<int> insertDocumentDoubt(Map<String, dynamic> doubtData) async { final db = await database; return await db.insert('document_doubts', doubtData); }
-  Future<List<Map<String, dynamic>>> getDoubtsBySociety(int societyId) async { final db = await database; return await db.query('document_doubts', where: 'society_id = ?', whereArgs: [societyId], orderBy: 'id DESC'); }
+  // ==========================================
+  //  🏢 सोसायटी और फाइल प्रोसेसिंग
+  // ==========================================
+  Future<int> insertSociety(Map<String, dynamic> row) async { 
+    final db = await database; 
+    return await db.insert('societies', row); 
+  }
+  
+  Future<List<Map<String, dynamic>>> queryAllSocieties() async { 
+    final db = await database; 
+    return await db.query('societies', orderBy: 'id DESC'); 
+  }
+  
+  Future<bool> isFileAlreadyProcessed(String hash) async { 
+    final db = await database; 
+    final res = await db.query('processed_files', where: 'file_hash = ?', whereArgs: [hash]); 
+    return res.isNotEmpty; 
+  }
+  
+  Future<void> markFileAsProcessed(int societyId, String hash, String fileName) async { 
+    final db = await database; 
+    await db.insert('processed_files', {
+      'society_id': societyId, 
+      'file_hash': hash, 
+      'file_name': fileName, 
+      'process_date': DateTime.now().toIso8601String()
+    }); 
+  }
+
+  // ==========================================
+  //  🚨 AI ऑडिट अलर्ट्स / विसंगतियां (Doubts)
+  // ==========================================
+  Future<int> insertDocumentDoubt(Map<String, dynamic> doubtData) async { 
+    final db = await database; 
+    return await db.insert('document_doubts', doubtData); 
+  }
+  
+  Future<List<Map<String, dynamic>>> getDoubtsBySociety(int societyId) async { 
+    final db = await database; 
+    return await db.query('document_doubts', where: 'society_id = ?', whereArgs: [societyId], orderBy: 'id DESC'); 
+  }
+
+  // 🔥 फिक्स: CI/CD बिल्ड को क्रैश होने से बचाने के लिए 'queryDocumentDoubts' का एलियास (Alias) मेथड
+  Future<List<Map<String, dynamic>>> queryDocumentDoubts(int societyId) async {
+    return await getDoubtsBySociety(societyId);
+  }
 }
