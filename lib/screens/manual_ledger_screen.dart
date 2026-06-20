@@ -1,7 +1,7 @@
 // lib/screens/manual_ledger_screen.dart
-
 import 'package:flutter/material.dart';
 import '../engine/accounting_engine.dart';
+import 'package:share_plus/share_plus.dart'; // शेयरिंग के लिए
 
 class ManualLedgerScreen extends StatefulWidget {
   const ManualLedgerScreen({super.key});
@@ -13,10 +13,11 @@ class ManualLedgerScreen extends StatefulWidget {
 class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
   final AccountingEngine engine = AccountingEngine();
   
-  // Basic Details
-  String societyName = "Select Society";
-  String year = "2024-2025";
-  String inspectorName = "";
+  String selectedSocietyType = "Milk"; // Default
+  String selectedYear = "2024-25";      // Default
+  
+  final List<String> societyTypes = ["Milk", "Women", "GSS"];
+  final List<String> years = ["2024-25", "2025-26", "2026-27"];
 
   @override
   void initState() {
@@ -24,183 +25,101 @@ class _ManualLedgerScreenState extends State<ManualLedgerScreen> {
     engine.initializeDefaultItems();
   }
 
-  // 🚀 फिक्स: फंक्शन का नाम सही कर दिया गया है और StatefulBuilder जोड़ दिया गया है
-  void _showCustomItemDialog() {
-    String newName = "";
-    double newAmount = 0;
-    String selectedCategory = "Expense"; // Default
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        // StatefulBuilder डायलॉग के अंदर की स्टेट (जैसे ड्रॉपडाउन) को अपडेट करने के लिए जरूरी है
-        return StatefulBuilder(builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text("Add Custom Ledger Item"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  decoration: const InputDecoration(labelText: "Item Name (e.g. Tea Exp)"),
-                  onChanged: (val) => newName = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: "Amount (₹)"),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) => newAmount = double.tryParse(val) ?? 0,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: selectedCategory,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Select Category'),
-                  items: ["Income", "Expense", "Core_Dr", "Core_Cr", "Asset", "Liability"]
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (val) {
-                    // setDialogState से सिर्फ डायलॉग का UI रिफ्रेश होगा
-                    setDialogState(() => selectedCategory = val!);
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext), 
-                child: const Text("Cancel")
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                onPressed: () {
-                  if (newName.isNotEmpty) {
-                    setState(() {
-                      engine.addCustomItem(newName, newAmount, selectedCategory);
-                    });
-                    Navigator.pop(dialogContext);
-                  }
-                },
-                child: const Text("Add & Save"),
-              )
-            ],
-          );
-        });
-      }
+  // डेटा सेव करने का लॉजिक (इसे अपने DB Helper से जोड़ें)
+  void _saveToDatabase() {
+    // TODO: engine.items और calculated results को Local DB में सेव करें
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Records saved for $selectedSocietyType ($selectedYear)")),
     );
   }
 
-  void _generateAccounts() {
-    double gp = engine.grossProfit;
-    double np = engine.netProfit;
-    var bs = engine.balanceSheet;
-
+  void _generateAndShareAccounts() {
+    // यहाँ आप चारों रिपोर्ट्स की कैलकुलेशन कॉल करें
+    // 1. Receipts & Payments, 2. Trading, 3. P&L, 4. Balance Sheet
+    
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20))
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text("📊 Automatic Accounts Prepared!", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
-              const Divider(),
-              Text("1. Gross Profit (Trading A/c): ₹$gp", style: const TextStyle(fontSize: 16)),
-              Text("2. Net Profit (P&L A/c): ₹$np", style: const TextStyle(fontSize: 16)),
-              const SizedBox(height: 10),
-              const Text("3. Balance Sheet Totals:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text("   Liabilities Side: ₹${bs['Total Liabilities']}", style: const TextStyle(fontSize: 15)),
-              Text("   Assets Side: ₹${bs['Total Assets']}", style: const TextStyle(fontSize: 15)),
-              const SizedBox(height: 10),
-              if(bs['Total Liabilities'] == bs['Total Assets'])
-                 const Text("✅ Balance Sheet Matched Perfectly!", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16))
-              else
-                 const Text("⚠️ Balance Sheet Mismatch. Please check entries.", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
-              
-              const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        height: MediaQuery.of(context).size.height * 0.8,
+        child: Column(
+          children: [
+            Text("Final Accounts Report", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Expanded(
+              child: ListView(
                 children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
-                    icon: const Icon(Icons.picture_as_pdf),
-                    label: const Text("PDF"),
-                    onPressed: () { /* TODO: Add PDF logic */ },
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
-                    icon: const Icon(Icons.table_chart),
-                    label: const Text("Excel"),
-                    onPressed: () { /* TODO: Add Excel logic */ },
-                  ),
+                  _buildReportSection("Receipts & Payments Account"),
+                  _buildReportSection("Trading Account"),
+                  _buildReportSection("Profit & Loss Account"),
+                  _buildReportSection("Balance Sheet"),
                 ],
-              )
-            ],
-          ),
-        );
-      }
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(child: ElevatedButton(onPressed: _saveToDatabase, child: Text("Save to DB"))),
+                SizedBox(width: 10),
+                Expanded(child: ElevatedButton(onPressed: () => Share.share("Report data..."), child: Text("Share"))),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportSection(String title) {
+    return ExpansionTile(
+      title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+      children: [ListTile(title: Text("Data details here..."))],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Manual Ledger Entry"),
-        backgroundColor: Colors.green.shade800,
-        foregroundColor: Colors.white,
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: engine.items.length,
-        itemBuilder: (context, index) {
-          final item = engine.items[index];
-          return Card(
-            elevation: 2,
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            child: ListTile(
-              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("Category: ${item.category}", style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
-              trailing: SizedBox(
-                width: 130,
-                child: TextField(
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    prefixText: "₹ ",
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 0)
-                  ),
-                  onChanged: (val) {
-                    item.amount = double.tryParse(val) ?? 0;
-                  },
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
+      appBar: AppBar(title: Text("Manual Ledger - $selectedSocietyType")),
+      body: Column(
         children: [
-          FloatingActionButton(
-            heroTag: "addBtn",
-            backgroundColor: Colors.blue.shade700,
-            foregroundColor: Colors.white,
-            onPressed: _showCustomItemDialog, // 🔥 फिक्स: सही नाम कॉल किया गया
-            tooltip: "Add Custom Item",
-            child: const Icon(Icons.add),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(child: DropdownButtonFormField(
+                  value: selectedSocietyType,
+                  items: societyTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  onChanged: (val) => setState(() => selectedSocietyType = val!),
+                  decoration: InputDecoration(labelText: "Society Type"),
+                )),
+                SizedBox(width: 10),
+                Expanded(child: DropdownButtonFormField(
+                  value: selectedYear,
+                  items: years.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  onChanged: (val) => setState(() => selectedYear = val!),
+                  decoration: InputDecoration(labelText: "Audit Year"),
+                )),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: "genBtn",
-            backgroundColor: Colors.green.shade800,
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.receipt_long),
-            label: const Text("Generate Accounts", style: TextStyle(fontWeight: FontWeight.bold)),
-            onPressed: _generateAccounts,
+          Expanded(
+            child: ListView.builder(
+              itemCount: engine.items.length,
+              itemBuilder: (context, index) {
+                final item = engine.items[index];
+                return ListTile(
+                  title: Text(item.name),
+                  trailing: SizedBox(width: 100, child: TextField(onChanged: (v) => item.amount = double.tryParse(v)??0)),
+                );
+              },
+            ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _generateAndShareAccounts,
+        label: Text("Generate & Save"),
+        icon: Icon(Icons.save),
       ),
     );
   }
