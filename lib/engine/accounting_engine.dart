@@ -3,7 +3,7 @@
 class LedgerItem {
   final String name;
   double amount;
-  final String category; // 'Core', 'Expense', 'Income', 'Asset', 'Liability', 'Cash'
+  final String category; 
   
   LedgerItem({required this.name, required this.amount, required this.category});
 }
@@ -11,21 +11,23 @@ class LedgerItem {
 class AccountingEngine {
   List<LedgerItem> items = [];
 
-  // डिफ़ॉल्ट आइटम्स जो स्क्रीन पर पहले से दिखेंगे
   void initializeDefaultItems() {
     items = [
-      // Core Business
-      LedgerItem(name: "Milk Buy", amount: 0, category: "Core_Dr"), // Trading Dr / Payment
-      LedgerItem(name: "Milk Sell", amount: 0, category: "Core_Cr"), // Trading Cr / Receipt
+      // 1. Receipts & Payments Specific
+      LedgerItem(name: "Opening Cash/Bank", amount: 0, category: "Opening_Bal"), 
+      
+      // 2. Core Business (Trading)
+      LedgerItem(name: "Opening Stock", amount: 0, category: "Trading_Dr_Only"),
+      LedgerItem(name: "Milk Buy", amount: 0, category: "Core_Dr"), 
+      LedgerItem(name: "Milk Sell", amount: 0, category: "Core_Cr"), 
       LedgerItem(name: "Ghee Buy", amount: 0, category: "Core_Dr"),
       LedgerItem(name: "Ghee Sell", amount: 0, category: "Core_Cr"),
       LedgerItem(name: "Seed Buy", amount: 0, category: "Core_Dr"),
       LedgerItem(name: "Seed Sell", amount: 0, category: "Core_Cr"),
       LedgerItem(name: "Head load", amount: 0, category: "Core_Dr"),
-      LedgerItem(name: "Opening Stock", amount: 0, category: "Trading_Dr_Only"),
       LedgerItem(name: "Closing Stock", amount: 0, category: "Trading_Cr_Asset"),
       
-      // Expenses (P&L Debit)
+      // 3. Expenses (P&L Debit)
       LedgerItem(name: "Salary", amount: 0, category: "Expense"),
       LedgerItem(name: "Stationary", amount: 0, category: "Expense"),
       LedgerItem(name: "Audit fee", amount: 0, category: "Expense"),
@@ -33,58 +35,75 @@ class AccountingEngine {
       LedgerItem(name: "Interest Paid", amount: 0, category: "Expense"),
       LedgerItem(name: "Over head loss", amount: 0, category: "Expense"),
       LedgerItem(name: "Commission Paid", amount: 0, category: "Expense"),
-      LedgerItem(name: "Depreciation", amount: 0, category: "Expense_NonCash"),
+      LedgerItem(name: "Depreciation", amount: 0, category: "Expense_NonCash"), // Non-cash, so not in Payments
 
-      // Income (P&L Credit)
+      // 4. Income (P&L Credit)
       LedgerItem(name: "Interest Received", amount: 0, category: "Income"),
       LedgerItem(name: "Commission Received", amount: 0, category: "Income"),
 
-      // Assets & Cash
+      // 5. Assets & Cash (Closing)
       LedgerItem(name: "Fixed Assets", amount: 0, category: "Asset"),
       LedgerItem(name: "Cash in hand", amount: 0, category: "Cash_Asset"),
       LedgerItem(name: "Cash at Bank", amount: 0, category: "Cash_Asset"),
 
-      // Liabilities & Previous Year
+      // 6. Liabilities & Previous Year
       LedgerItem(name: "Loan", amount: 0, category: "Liability"),
       LedgerItem(name: "Debenture", amount: 0, category: "Liability"),
-      LedgerItem(name: "Previous Year Profit", amount: 0, category: "Liability"),
+      LedgerItem(name: "Previous Year Profit", amount: 0, category: "Liability_NonCash"), // Non-cash
     ];
   }
 
-  // कोई नया मैन्युअल आइटम जोड़ने के लिए
   void addCustomItem(String name, double amount, String category) {
     items.add(LedgerItem(name: name, amount: amount, category: category));
   }
 
-  // === 4 खातों का ऑटोमैटिक कैलकुलेशन ===
+  // ==========================================
+  // 🧮 1. Receipts and Payments Account Data
+  // ==========================================
+  List<LedgerItem> get receipts => items.where((i) => i.amount > 0 && ['Opening_Bal', 'Core_Cr', 'Income', 'Liability'].contains(i.category)).toList();
+  List<LedgerItem> get payments => items.where((i) => i.amount > 0 && ['Core_Dr', 'Expense'].contains(i.category)).toList();
+  double get totalReceipts => receipts.fold(0, (sum, i) => sum + i.amount);
+  double get totalPayments => payments.fold(0, (sum, i) => sum + i.amount);
+  double get closingCashBal => totalReceipts - totalPayments; // यह Closing Cash से मैच होना चाहिए
 
-  // 1. Trading Account (Gross Profit)
+  // ==========================================
+  // 🧮 2. Trading Account Data
+  // ==========================================
+  List<LedgerItem> get tradingDr => items.where((i) => i.amount > 0 && ['Core_Dr', 'Trading_Dr_Only'].contains(i.category)).toList();
+  List<LedgerItem> get tradingCr => items.where((i) => i.amount > 0 && ['Core_Cr', 'Trading_Cr_Asset'].contains(i.category)).toList();
+  
   double get grossProfit {
-    double drTotal = items.where((i) => i.category == 'Core_Dr' || i.category == 'Trading_Dr_Only').fold(0, (sum, i) => sum + i.amount);
-    double crTotal = items.where((i) => i.category == 'Core_Cr' || i.category == 'Trading_Cr_Asset').fold(0, (sum, i) => sum + i.amount);
-    return crTotal - drTotal; // अगर प्लस है तो Gross Profit, माइनस है तो Gross Loss
+    double dr = tradingDr.fold(0, (sum, i) => sum + i.amount);
+    double cr = tradingCr.fold(0, (sum, i) => sum + i.amount);
+    return cr - dr; 
   }
 
-  // 2. Profit & Loss Account (Net Profit)
+  // ==========================================
+  // 🧮 3. Profit & Loss Account Data
+  // ==========================================
+  List<LedgerItem> get pnlDr => items.where((i) => i.amount > 0 && ['Expense', 'Expense_NonCash'].contains(i.category)).toList();
+  List<LedgerItem> get pnlCr => items.where((i) => i.amount > 0 && ['Income'].contains(i.category)).toList();
+  
   double get netProfit {
-    double expenseTotal = items.where((i) => i.category.contains('Expense')).fold(0, (sum, i) => sum + i.amount);
-    double incomeTotal = items.where((i) => i.category == 'Income').fold(0, (sum, i) => sum + i.amount);
-    return grossProfit + incomeTotal - expenseTotal;
+    double exp = pnlDr.fold(0, (sum, i) => sum + i.amount);
+    double inc = pnlCr.fold(0, (sum, i) => sum + i.amount);
+    return grossProfit + inc - exp;
   }
 
-  // 3. Balance Sheet Matching Check
-  Map<String, double> get balanceSheet {
-    double assets = items.where((i) => i.category == 'Asset' || i.category == 'Cash_Asset' || i.category == 'Trading_Cr_Asset').fold(0, (sum, i) => sum + i.amount);
-    
-    // Depreciation एसेट्स में से माइनस होता है
-    double depreciation = items.where((i) => i.category == 'Expense_NonCash').fold(0, (sum, i) => sum + i.amount);
-    assets -= depreciation;
+  // ==========================================
+  // 🧮 4. Balance Sheet Data
+  // ==========================================
+  List<LedgerItem> get liabilities => items.where((i) => i.amount > 0 && ['Liability', 'Liability_NonCash'].contains(i.category)).toList();
+  List<LedgerItem> get assets => items.where((i) => i.amount > 0 && ['Asset', 'Cash_Asset', 'Trading_Cr_Asset'].contains(i.category)).toList();
 
-    double liabilities = items.where((i) => i.category == 'Liability').fold(0, (sum, i) => sum + i.amount);
-    
-    // Net profit हमेशा Liability साइड (Capital में) जुड़ता है
-    liabilities += netProfit;
+  Map<String, double> get balanceSheetTotals {
+    double ast = assets.fold(0, (sum, i) => sum + i.amount);
+    double dep = items.where((i) => i.category == 'Expense_NonCash').fold(0, (sum, i) => sum + i.amount);
+    ast -= dep; // Asset में से Depreciation घटाएं
 
-    return {"Total Assets": assets, "Total Liabilities": liabilities};
+    double lib = liabilities.fold(0, (sum, i) => sum + i.amount);
+    lib += netProfit; // Net Profit लायबिलिटी साइड जुड़ेगा
+
+    return {"Total Assets": ast, "Total Liabilities": lib};
   }
 }
