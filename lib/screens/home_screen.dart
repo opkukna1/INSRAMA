@@ -6,6 +6,7 @@ import 'bill_upload_screen.dart';
 import 'accounts_screen.dart';
 import 'audit_report_screen.dart'; 
 import 'master_ledger_screen.dart'; 
+import 'manual_ledger_screen.dart'; // 🌟 नया: मैन्युअल लेज़र स्क्रीन इंपोर्ट की गई
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _societyCount = 0;
-  int _totalAlertsCount = 0; // 🌟 नया: कुल एक्टिव संदिग्ध गड़बड़ियों की संख्या
+  int _totalAlertsCount = 0;
 
   @override
   void initState() {
@@ -134,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
-                childAspectRatio: 1.15, // 🚀 फिक्स: छोटे स्क्रीन पर ओवरफ्लो से बचने के लिए अनुपात सुधारा
+                childAspectRatio: 1.15,
                 children: [
                   _buildPremiumMenuCard(
                     context,
@@ -143,6 +144,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.business_center_rounded,
                     gradientColors: [Colors.indigo.shade700, Colors.indigo.shade500],
                     targetScreen: const SocietyManagementScreen(),
+                  ),
+                  _buildPremiumMenuCard(
+                    context,
+                    title: 'मैन्युअल लेज़र', // 🌟 नया: मैन्युअल लेज़र बटन
+                    subtitle: 'Custom Accounts',
+                    icon: Icons.library_books_rounded,
+                    gradientColors: [Colors.blue.shade700, Colors.lightBlue.shade500],
+                    targetScreen: ManualLedgerScreen(), // अपनी स्क्रीन का सही क्लास नाम यहाँ दें
                   ),
                   _buildPremiumMenuCard(
                     context,
@@ -173,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
               
               const SizedBox(height: 16),
               
-              // 3. फॉरेंसिक ऑडिट रिपोर्ट्स (🌟 लाइव अलर्ट काउंट बैज के साथ)
+              // 3. फॉरेंसिक ऑडिट रिपोर्ट्स
               _buildPremiumMenuCard(
                 context,
                 title: 'फॉरेंसिक ऑडिट रिपोर्ट्स (AI Alerts)',
@@ -202,14 +211,14 @@ class _HomeScreenState extends State<HomeScreen> {
     required List<Color> gradientColors,
     required Widget targetScreen,
     bool isFullWidth = false,
-    int? badgeValue, // 🌟 नया: ऑडिट विसंगति अलर्ट दिखाने के लिए ऑप्शनल बैज संख्या
+    int? badgeValue,
   }) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context, 
           MaterialPageRoute(builder: (context) => targetScreen)
-        ).then((_) => _loadDashboardStats()); // वापस आने पर आँकड़े स्वतः रीलोड होंगे
+        ).then((_) => _loadDashboardStats());
       },
       splashColor: gradientColors[0].withValues(alpha: 0.3),
       borderRadius: BorderRadius.circular(16),
@@ -253,7 +262,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // यदि अलर्ट्स हैं तो चमकदार लाल/सफ़ेद बैज दिखाएं
                   if (badgeValue != null)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
