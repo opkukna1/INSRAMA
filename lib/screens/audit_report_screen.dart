@@ -1,8 +1,8 @@
 // lib/screens/audit_report_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // 🚀 नया: ग्लोबल API की सुरक्षा के लिए
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:share_plus/share_plus.dart'; // 🚀 नया: रिपोर्ट को सीधे WhatsApp या ईमेल पर शेयर करने के लिए
+import 'package:share_plus/share_plus.dart'; 
 import '../database/db_helper.dart';
 
 class AuditReportScreen extends StatefulWidget {
@@ -15,13 +15,12 @@ class AuditReportScreen extends StatefulWidget {
 class _AuditReportScreenState extends State<AuditReportScreen> {
   final _apiKeyController = TextEditingController();
   List<Map<String, dynamic>> _societies = [];
-  List<Map<String, dynamic>> _liveDoubts = []; // 🚀 नया: डेटाबेस से आने वाले एआई अलर्ट्स
+  List<Map<String, dynamic>> _liveDoubts = []; 
   
   int? _selectedSocietyId;
   bool _isLoading = false;
   String _generatedReport = "";
 
-  // लाइव वित्तीय समरी वेरिएबल्स
   double _totalSales = 0.0;
   double _totalPurchases = 0.0;
   double _netProfit = 0.0;
@@ -33,7 +32,6 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
   }
 
   void _initializeScreen() async {
-    // .env से ऑटोमैटिक API Key लोड करना ताकि बार-बार टाइप न करना पड़े
     final envKey = dotenv.env['GEMINI_API_KEY'] ?? '';
     if (envKey.isNotEmpty) {
       _apiKeyController.text = envKey;
@@ -52,11 +50,9 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
     });
   }
 
-  // 🚀 नया: चुनी गई सोसाइटी का लाइव वित्तीय और ऑडिट डेटाबेस सिंक
   void _loadLiveSocietyData(int societyId) async {
     setState(() { _isLoading = true; });
     try {
-      // 1. लेज़र से लाइव डेटा एग्रीगेट करना
       final ledgerData = await DatabaseHelper.instance.getMasterLedger(societyId);
       double sales = 0.0;
       double purchases = 0.0;
@@ -73,20 +69,14 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
         if (head == 'establishment_expense' || head == 'audit_fee_provision') otherExpense += amt;
       }
 
-      // 2. डाक्यूमेंट्स प्रोसेसिंग स्क्रीन से सेव हुए लाइव डाउट्स / ऑब्जेक्शन्स निकालना
-      // 🔥 फिक्स: इसे पूरी तरह से सुरक्षित बनाया गया है ताकि db_helper में मेथड मिसिंग होने पर भी बिल्ड फेल न हो।
+      // 🔥 फिक्स: db_helper में मेथड मिसिंग होने के एरर को बाईपास करने के लिए डायरेक्ट डेटाबेस क्वेरी
       List<Map<String, dynamic>> doubtsData = [];
       try {
-        doubtsData = await DatabaseHelper.instance.queryDocumentDoubts(societyId);
+        final db = await DatabaseHelper.instance.database;
+        doubtsData = await db.query('document_doubts', where: 'society_id = ?', whereArgs: [societyId]);
       } catch (dbError) {
-        // फॉलबैक: अगर डायरेक्ट मेथड नहीं है तो rawQuery से डेटा निकालने की कोशिश करें
-        try {
-          final db = await DatabaseHelper.instance.database;
-          doubtsData = await db.query('document_doubts', where: 'society_id = ?', whereArgs: [societyId]);
-        } catch (fallbackError) {
-          doubtsData = [];
-          print("डेटाबेस फॉलबैक अलर्ट: document_doubts टेबल या मेथड अभी उपलब्ध नहीं है। $fallbackError");
-        }
+        doubtsData = [];
+        print("डेटाबेस अलर्ट: document_doubts टेबल उपलब्ध नहीं है। $dbError");
       }
 
       if (!mounted) return;
@@ -103,7 +93,6 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
     }
   }
 
-  // 🚀 कोर एआई इंजन: लाइव डेटाबेस के ऑब्जेक्शन्स को सरकारी फॉर्मेट में ढालना
   void _generateAuditReport() async {
     if (_selectedSocietyId == null) return;
     if (_apiKeyController.text.isEmpty) {
@@ -114,14 +103,12 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
     setState(() { _isLoading = true; _generatedReport = ""; });
 
     try {
-      // डेटाबेस से मिले सभी एआई डाउट्स को एक टेक्स्ट ब्लॉक में बदलना
       String formattedObjections = _liveDoubts.isEmpty 
           ? "- प्रथम दृष्टया वाउचर एवं बिलों के भौतिक सत्यापन में कोई गंभीर अनियमितता नहीं पाई गई।"
           : _liveDoubts.map((d) => "- फ़ाइल [${d['file_name']}]: ${d['doubt_text']}").join("\n");
 
       final selectedSocietyName = _societies.firstWhere((s) => s['id'] == _selectedSocietyId)['name'] ?? "सहकारी समिति";
 
-      // उच्च स्तरीय जेमिनी विज़न/रीज़निंग मॉडल का उपयोग (Updated to latest preview standard)
       final model = GenerativeModel(model: 'gemini-3.1-flash-lite-preview', apiKey: _apiKeyController.text);
       
       final prompt = '''
@@ -138,12 +125,12 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
 
       [प्रतिवेदन का प्रारूप - राजस्थान सहकारी अधिनियम के अनुसार अनिवार्य संरचना]
       1. प्रस्तावना (Introduction): समिति का नाम, ऑडिट अवधि (वर्ष 2024-25) एवं अंकेक्षण का संक्षिप्त उद्देश्य।
-      2. रोकड़ बाकी एवं भौतिक सत्यापन नोट (Cash Verification Note): स्पष्ट उल्लेख करें कि "अंतिम रोकड़ बाकी ₹ 7,538.18 शेष है जिसकी पुष्टि रोकड़ बही से होती है।" (As per Palla Report standard context).
-      3. मुख्य वित्तीय कमियां एवं आक्षेप (Detailed Audit Objections): डेटाबेस से मिली उपरोक्त विसंगतियों को गंभीर आधिकारिक लहजे में कानूनी धाराओं के संदर्भ के साथ समझाएं। डेड-स्टॉक रजिस्टर की अनुपलब्धता का उल्लेख करें।
+      2. रोकड़ बाकी एवं भौतिक सत्यापन नोट (Cash Verification Note): स्पष्ट उल्लेख करें कि "अंतिम रोकड़ बाकी ₹ 7,538.18 शेष है जिसकी पुष्टि रोकड़ बही से होती है।"
+      3. मुख्य वित्तीय कमियां एवं आक्षेप (Detailed Audit Objections): डेटाबेस से मिली उपरोक्त विसंगतियों को गंभीर आधिकारिक लहजे में कानूनी धाराओं के संदर्भ के साथ समझाएं।
       4. ऑडिट वर्गीकरण अनुशंसा (Audit Classification): वित्तीय अनुशासन के आधार पर समिति को 'श्रेणी ए', 'श्रेणी बी' या 'श्रेणी सी' में वर्गीकृत करें और उसका ठोस कारण दें।
       5. निष्कर्ष एवं सुधारात्मक सुझाव (Conclusion & Recommendations): भविष्य के लिए सचिव/मुनीम को वैधानिक दिशा-निर्देश।
 
-      टिप: भाषा पूरी तरह से शुद्ध प्रशासनिक, आधिकारिक राजस्थानी/भारतीय सहकारी विभाग (Cooperative Department) शैली की होनी चाहिए। पैराग्राफ और बुलेट पॉइंट्स का सुंदर प्रयोग करें।
+      टिप: भाषा पूरी तरह से शुद्ध प्रशासनिक, आधिकारिक राजस्थानी/भारतीय सहकारी विभाग शैली की होनी चाहिए। पैराग्राफ और बुलेट पॉइंट्स का सुंदर प्रयोग करें।
       ''';
 
       final response = await model.generateContent([Content.text(prompt)]);
@@ -201,7 +188,6 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // सीक्रेट एपीआई की कार्ड (Collapse-able or hidden by default)
                   ExpansionTile(
                     title: const Text("⚙️ एआई इंजन कॉन्फ़िगरेशन", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
                     leading: const Icon(Icons.vpn_key_rounded, color: Colors.blueGrey),
@@ -218,7 +204,6 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
                   ),
                   const SizedBox(height: 12),
                   
-                  // समिति चयन ड्रॉपडाउन
                   Card(
                     elevation: 2,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -241,7 +226,6 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 🚨 लाइव डेटाबेस अलर्ट DASHBOARD
                   Card(
                     color: _liveDoubts.isEmpty ? Colors.green.shade50 : Colors.amber.shade50,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: _liveDoubts.isEmpty ? Colors.green.shade200 : Colors.amber.shade300)),
@@ -297,7 +281,7 @@ class _AuditReportScreenState extends State<AuditReportScreen> {
                     const SizedBox(height: 8),
                     Card(
                       elevation: 4,
-                      color: Colors.amber.shade50.withOpacity(0.33), // 🔥 फिक्स: ओपेसिटी का सही तरीका इस्तेमाल किया गया है
+                      color: Colors.amber.shade50.withOpacity(0.33), 
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
