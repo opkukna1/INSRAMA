@@ -17,15 +17,19 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
   List<Map<String, dynamic>> _societies = [];
   int? _selectedSocietyId;
   List<Map<String, dynamic>> _allLedgerData = []; 
-  List<Map<String, dynamic>> _filteredLedgerData = []; // 🔥 फिक्स: सही वेरिएबल नाम
+  List<Map<String, dynamic>> _filteredLedgerData = []; 
   bool _isLoading = false;
   
   final TextEditingController _searchController = TextEditingController(); 
 
+  // 🌟 फिक्स: यहाँ आपके नए तीनों खाते हिंदी नामों के साथ जोड़ दिए गए हैं
   final Map<String, String> _headNamesHindi = {
     "none": "सामान्य प्रविष्टि / कोई नहीं",
     "milk_purchase": "दुग्ध खरीद (Milk Purchase)",
     "milk_sales": "दुग्ध बिक्री (Milk Sales)",
+    "head_load": "हेड लोड आय (Head Load Income) 🟢",
+    "overhead_load": "ओवरहेड आय (Overhead Income) 🟢",
+    "ghee_katoti": "घी कटौती खरीद (Ghee Purchase) 🔴",
     "feed_purchase": "पशु आहार खरीद (Feed Purchase)",
     "feed_sales": "पशु आहार बिक्री (Feed Sales)",
     "establishment_expense": "स्थापना एवं मानदेय (Establishment)",
@@ -62,7 +66,7 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
     if (!mounted) return;
     setState(() {
       _allLedgerData = data;
-      _filteredLedgerData = data; // 🔥 फिक्स 
+      _filteredLedgerData = data; 
       _searchController.clear(); 
       _isLoading = false;
     });
@@ -70,13 +74,13 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
 
   void _filterLedger(String query) {
     if (query.isEmpty) {
-      setState(() => _filteredLedgerData = _allLedgerData); // 🔥 फिक्स
+      setState(() => _filteredLedgerData = _allLedgerData); 
       return;
     }
     
     final lowercaseQuery = query.toLowerCase();
     setState(() {
-      _filteredLedgerData = _allLedgerData.where((row) { // 🔥 फिक्स
+      _filteredLedgerData = _allLedgerData.where((row) { 
         final particulars = (row['particulars'] ?? '').toString().toLowerCase();
         final head = (row['account_head'] ?? '').toString().toLowerCase();
         final headHindi = (_headNamesHindi[head] ?? '').toLowerCase();
@@ -92,9 +96,6 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
     TextEditingController dateCtrl = TextEditingController(text: row['date']);
     TextEditingController particularsCtrl = TextEditingController(text: row['particulars']);
     TextEditingController amountCtrl = TextEditingController(text: row['amount'].toString());
-    
-    String selectedType = row['type'] ?? 'DEBIT';
-    String selectedCategory = row['category'] ?? 'Expense';
     
     String selectedHead = row['account_head'] ?? 'none';
     if (!_headNamesHindi.containsKey(selectedHead)) {
@@ -149,11 +150,28 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
               TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('रद्द करें')),
               ElevatedButton(
                 onPressed: () async {
+                  // खाता हेड के आधार पर ऑटो-कैटेगरी सेट करना ताकि बैलेंस शीट न बिगड़े
+                  String category = 'Expense';
+                  String type = 'DEBIT';
+                  
+                  if (['milk_sales', 'head_load', 'overhead_load', 'miscellaneous_income', 'feed_sales'].contains(selectedHead)) {
+                    category = 'Income';
+                    type = 'CREDIT';
+                  } else if (selectedHead == 'share_capital') {
+                    category = 'Liability';
+                    type = 'CREDIT';
+                  } else if (selectedHead == 'dairy_debtors') {
+                    category = 'Asset';
+                    type = 'DEBIT';
+                  }
+
                   Map<String, dynamic> updatedData = {
                     'date': dateCtrl.text,
                     'particulars': particularsCtrl.text,
                     'amount': double.tryParse(amountCtrl.text) ?? 0.0,
                     'account_head': selectedHead == 'none' ? null : selectedHead,
+                    'category': category,
+                    'type': type,
                     'is_manual': 1 
                   };
                   await DatabaseHelper.instance.updateLedgerEntry(row['id'], updatedData);
@@ -176,14 +194,22 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
   }
 
   void _exportToExcelAndShare() async {
-    if (_filteredLedgerData.isEmpty) return; // 🔥 फिक्स
+    if (_filteredLedgerData.isEmpty) return; 
     try {
       var excel = Excel.createExcel();
       Sheet sheetObject = excel['Master Ledger'];
       
-      sheetObject.appendRow([TextCellValue('Date'), TextCellValue('Particulars'), TextCellValue('Amount')]);
-      for (var row in _filteredLedgerData) { // 🔥 फिक्स
-        sheetObject.appendRow([TextCellValue(row['date'].toString()), TextCellValue(row['particulars'].toString()), DoubleCellValue(row['amount'])]);
+      sheetObject.appendRow([TextCellValue('Date'), TextCellValue('Particulars'), TextCellValue('Account Head'), TextCellValue('Amount'), TextCellValue('Type')]);
+      for (var row in _filteredLedgerData) { 
+        final headKey = row['account_head'] ?? 'none';
+        final headHindi = _headNamesHindi[headKey] ?? 'सामान्य';
+        sheetObject.appendRow([
+          TextCellValue(row['date'].toString()), 
+          TextCellValue(row['particulars'].toString()), 
+          TextCellValue(headHindi),
+          DoubleCellValue(row['amount']),
+          TextCellValue(row['type'] ?? 'DEBIT')
+        ]);
       }
       
       Directory tempDir = await getTemporaryDirectory();
@@ -208,11 +234,26 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
       ),
       body: Column(
         children: [
+          // सर्च बार जोड़ दिया ताकि आप सीधे "हेड लोड" या "लीटर" सर्च कर सकें
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _filterLedger,
+              decoration: InputDecoration(
+                hintText: 'विवरण या खाता हेड खोजें (उदा: हेड लोड, 1200 Ltr)...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
           Card(
-            margin: const EdgeInsets.all(8.0),
+            margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
             child: DropdownButton<int>(
               value: _selectedSocietyId,
               isExpanded: true,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 15), 
               items: _societies.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text(s['name']))).toList(),
               onChanged: (val) {
@@ -221,29 +262,73 @@ class _MasterLedgerScreenState extends State<MasterLedgerScreen> {
               },
             ),
           ),
+          const SizedBox(height: 6),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : InteractiveViewer( 
-                    constrained: false, 
-                    child: DataTable(
-                      border: TableBorder.all(color: Colors.grey.shade200),
-                      columns: const [
-                        DataColumn(label: Text('Date')),
-                        DataColumn(label: Text('Particulars')),
-                        DataColumn(label: Text('Amount')),
-                        DataColumn(label: Text('Action')),
-                      ],
-                      rows: _filteredLedgerData.map((row) { // 🔥 फिक्स
-                        return DataRow(cells: [
-                          DataCell(Text(row['date'] ?? '')),
-                          DataCell(Text(row['particulars'] ?? '')),
-                          DataCell(Text(row['amount'].toString())),
-                          DataCell(IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showEditDialog(row))),
-                        ]);
-                      }).toList(),
-                    ),
-                  ),
+                : _filteredLedgerData.isEmpty 
+                    ? const Center(child: Text('कोई प्रविष्टि नहीं मिली।'))
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        physics: const BouncingScrollPhysics(),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            border: TableBorder.all(color: Colors.grey.shade200),
+                            headingRowColor: WidgetStateProperty.all(Colors.green.shade50),
+                            columns: const [
+                              DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Particulars & Account Head', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Amount (₹)', style: TextStyle(fontWeight: FontWeight.bold))),
+                              DataColumn(label: Text('Action', style: TextStyle(fontWeight: FontWeight.bold))),
+                            ],
+                            rows: _filteredLedgerData.map((row) { 
+                              final isCredit = row['type'] == 'CREDIT' || row['category'] == 'Income';
+                              final headKey = row['account_head'] ?? 'none';
+                              final headHindi = _headNamesHindi[headKey] ?? 'सामान्य';
+
+                              return DataRow(cells: [
+                                DataCell(Text(row['date'] ?? '')),
+                                // 🌟 विजुअल फिक्स: नाम के नीचे छोटा खाता हेड दिखेगा
+                                DataCell(
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(row['particulars'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                      Text(
+                                        headHindi,
+                                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // 🌟 विजुअल फिक्स: इनकम हरी दिखेगी और खर्च लाल दिखेगा
+                                DataCell(
+                                  Text(
+                                    '₹${row['amount']}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isCredit ? Colors.green.shade700 : Colors.red.shade700,
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  Row(
+                                    children: [
+                                      IconButton(icon: const Icon(Icons.edit, color: Colors.blue, size: 20), onPressed: () => _showEditDialog(row)),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_forever, color: Colors.red, size: 20), 
+                                        onPressed: () => _deleteEntry(row['id']),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ]);
+                            }).toList(),
+                          ),
+                        ),
+                      ),
           ),
         ],
       ),
