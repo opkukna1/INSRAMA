@@ -38,7 +38,7 @@ class AIService {
   }
 
   // ==========================================
-  // 🚀 3. अपग्रेडेड मास्टर AI मुनीम (🌟 फाइनल 4-अकाउंट मैपिंग और प्रॉम्ट फिक्स)
+  // 🚀 3. अपग्रेडेड मास्टर AI मुनीम (🌟 हेड लोड, ओवरहेड, लीटर और घी कटौती ब्रेकडाउन फिक्स)
   // ==========================================
   static Future<Map<String, dynamic>> processDocumentWithAuditorAI({
     String? documentText,     // नॉर्मल एक्सट्रैक्टेड टेक्स्ट (यदि उपलब्ध हो)
@@ -55,7 +55,7 @@ class AIService {
       ),
     );
 
-    // 🌟 अपग्रेडेड प्रॉम्ट: इसमें 4 खातों की सभी Strict Account Heads की सटीक मैपिंग दी गई है
+    // 🌟 अपग्रेडेड प्रॉम्ट: इसमें प्रत्येक कंपोनेंट का अलग-अलग ब्रेकडाउन नियम शामिल है
     final prompt = """
     You are an Elite Forensic Accountant and Chartered Auditor for a rural cooperative dairy society ERP system called "INS Rama".
     Analyze the provided document (text, scanned image PDF, or a photo of a Milk Bill, Bank Statement, Cash/Expense Voucher, or Stock Register).
@@ -64,10 +64,12 @@ class AIService {
     - Extract financial figures into the "ledger_entries" array. Do not leave it empty if data is present.
     - Write strict audit findings in "suspicious_notes" in clear HINDI language.
 
-    🚨 STRICT RULES TO PREVENT DOUBLE/TRIPLE COUNTING (मिल्क बिल फिक्स):
-    1. If the document is a "Milk Bill" covering a period (e.g., 10 or 15 days), DO NOT create individual entries for each day/line item AND a separate entry for the "Total". 
-    2. Create ONE single, consolidated transaction entry for the entire period's net business (e.g., Particulars: "15 दिनों की कुल दुग्ध बिक्री" or "दुग्ध खरीद Summary").
-    3. Ignore settlement summaries like "Paid to Current Account", "Bank Transfer" as separate entries. They are settlement modes, not new transactions.
+    🚨 STRICT MILK BILL BREAKDOWN RULES (दुग्ध बिल का संपूर्ण वर्गीकरण):
+    When analyzing a "Milk Bill" covering a supply period, DO NOT create a single aggregated total entry. You MUST identify and split individual items into separate distinct ledger rows inside the "ledger_entries" array:
+    1. Gross Milk Sales: Create a separate row. Calculate total liters/quantity and mention it clearly in the 'particulars' field (e.g., 'Milk Sale Collection - 1450.5 Liters').
+    2. Head Load Earnings (हेड लोड आय): Create a separate row. This is an INCOME for the society.
+    3. Overhead Earnings (ओवरहेड आय): Create a separate row. This is also an INCOME for the society.
+    4. Ghee Katoti Deduction (घी कटौती खरीद): If any amount is deducted for Ghee under 'घी कटौती', create a separate row treating it as Ghee Purchase (DEBIT / Expense).
 
     The JSON object MUST have exactly these two keys:
     1. "ledger_entries": A JSON array of transaction objects.
@@ -76,31 +78,33 @@ class AIService {
     --- Rules for "ledger_entries" ---
     Each transaction object inside the array must have exactly these keys:
     - date (String: Strictly YYYY-MM-DD format. If a period is given, use the last date of that period).
-    - particulars (String: Clear description in English or Hinglish like 'Milk purchase collection' or 'Office honorarium payment').
+    - particulars (String: Clear description in English or Hinglish including quantity like 'Milk Sale Collection - [Liters] Ltr' or 'Head Load Recovery Income').
     - amount (double: absolute numeric value, no commas or currency symbols).
     - type (String: strictly "DEBIT" or "CREDIT").
     - category (String: strictly one of "Income", "Expense", "Asset", "Liability").
     - doc_type (String: strictly one of "Milk Bill", "Voucher", "Bank Statement", "Other").
     - account_head (String: You MUST map the transaction strictly to one of these exact string values based on context):
       * "milk_purchase" -> For raw milk bought/collected from members (Debit, Expense, goes to Trading Account)
-      * "milk_sales" -> For milk sold to the Dairy Union/Federation (Credit, Income, goes to Trading Account)
+      * "milk_sales" -> For gross milk sold to the Dairy Union (Credit, Income, goes to Trading Account)
+      * "head_load" -> For transport/handling income recovered on the bill (Credit, Income, goes to P&L Account)
+      * "overhead_load" -> For overhead charges income recovered on the bill (Credit, Income, goes to P&L Account)
+      * "ghee_katoti" -> For ghee deduction representing ghee purchase stock (Debit, Expense, goes to Trading Account)
       * "feed_purchase" -> For purchasing cattle feed/dana stock for society (Debit, Expense, goes to Trading Account)
       * "feed_sales" -> For selling cattle feed/dana to members (Credit, Income, goes to Trading Account)
-      * "establishment_expense" -> For salaries, secretary honorarium, stationery, refreshments, tea expenses (Debit, Expense, goes to P&L Account)
+      * "establishment_expense" -> For salaries, secretary honorarium, stationery, refreshments (Debit, Expense, goes to P&L Account)
       * "audit_fee_provision" -> For audit fees or audit provisions mentioned (Debit, Expense, goes to P&L Account)
-      * "miscellaneous_income" -> For any small unexpected direct/indirect income or penalties collected (Credit, Income, goes to P&L Account)
+      * "miscellaneous_income" -> For any other small income or penalties collected (Credit, Income, goes to P&L Account)
       * "share_capital" -> For member share capital deposits or increases (Credit, Liability, goes to Balance Sheet)
       * "dairy_debtors" -> For outstanding dues receivable from the main dairy union (Debit, Asset, goes to Balance Sheet)
 
     Accounting Logic Reference:
-    - Money coming IN / Sales / Revenue -> CREDIT
-    - Money going OUT / Purchases / Expenses -> DEBIT
+    - Money coming IN / Sales / Head Load & Overhead Revenue -> CREDIT (Income)
+    - Money going OUT / Purchases / Ghee Deduction Stock -> DEBIT (Expense)
     """;
 
     final List<Part> parts = [TextPart(prompt)];
     
     if (fileBytes != null && mimeType != null) {
-      // मल्टीमॉडल सपोर्ट: जेमिनी सीधे विजुअली देखकर प्रोसेस करेगा
       parts.add(DataPart(mimeType, fileBytes));
     } else if (documentText != null && documentText.isNotEmpty) {
       parts.add(TextPart("Document Text to Analyze:\n$documentText"));
@@ -111,7 +115,7 @@ class AIService {
     final response = await model.generateContent([Content.multi(parts)]);
     String responseText = response.text ?? "{}";
 
-    // क्लीनिंग
+    // क्लीनिंग (मार्कडाउन रिमूवल)
     responseText = responseText.replaceAll('```json', '').replaceAll('```', '').trim();
 
     try {
@@ -123,7 +127,7 @@ class AIService {
   }
 
   // ==========================================
-  // 4. ACCOUNTING INSIGHT 
+  // 4. ACCOUNTING INSIGHT (डैशबोर्ड विश्लेषण)
   // ==========================================
   static Future<String> generateAccountingInsight({
     required String societyName,
