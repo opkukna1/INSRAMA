@@ -1,7 +1,7 @@
 // lib/services/ai_service.dart
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data'; // इमेज और पीडीएफ बाइट्स हैंडल करने के लिए
+import 'dart:typed_data'; 
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -10,9 +10,6 @@ import 'package:crypto/crypto.dart';
 
 class AIService {
   
-  // ==========================================
-  // 1. PDF से टेक्स्ट निकालने का कोड (नॉर्मल टेक्स्ट पीडीएफ के लिए)
-  // ==========================================
   static Future<String> extractTextFromPdf(String path) async {
     try {
       final File file = File(path);
@@ -27,9 +24,6 @@ class AIService {
     }
   }
 
-  // ==========================================
-  // 2. फाइल का SHA-256 हैश निकालना (डुप्लीकेट रोकने के लिए)
-  // ==========================================
   static Future<String> getFileHash(String filePath) async {
     final file = File(filePath);
     final bytes = await file.readAsBytes();
@@ -37,13 +31,11 @@ class AIService {
     return digest.toString();
   }
 
-  // ==========================================
-  // 🚀 3. अपग्रेडेड मास्टर AI मुनीम (🌟 हेड लोड, ओवरहेड, लीटर और घी कटौती ब्रेकडाउन फिक्स)
-  // ==========================================
+  // 🚀 मास्टर AI मुनीम (टाइप कास्टिंग एरर फिक्स के साथ)
   static Future<Map<String, dynamic>> processDocumentWithAuditorAI({
-    String? documentText,     // नॉर्मल एक्सट्रैक्टेड टेक्स्ट (यदि उपलब्ध हो)
-    Uint8List? fileBytes,     // 📸 इमेज पीडीएफ या डायरेक्ट फोटो के बाइट्स
-    String? mimeType,         // 'application/pdf', 'image/jpeg', 'image/png' आदि
+    String? documentText,     
+    Uint8List? fileBytes,     
+    String? mimeType,         
     required String apiKey,
   }) async {
     
@@ -51,11 +43,10 @@ class AIService {
       model: 'gemini-3.1-flash-lite-preview', 
       apiKey: apiKey,
       generationConfig: GenerationConfig(
-        responseMimeType: 'application/json', // जेमिनी सिर्फ शुद्ध JSON आउटपुट करेगा
+        responseMimeType: 'application/json', 
       ),
     );
 
-    // 🌟 अपग्रेडेड प्रॉम्ट: इसमें प्रत्येक कंपोनेंट का अलग-अलग ब्रेकडाउन नियम शामिल है
     final prompt = """
     You are an Elite Forensic Accountant and Chartered Auditor for a rural cooperative dairy society ERP system called "INS Rama".
     Analyze the provided document (text, scanned image PDF, or a photo of a Milk Bill, Bank Statement, Cash/Expense Voucher, or Stock Register).
@@ -68,7 +59,7 @@ class AIService {
     When analyzing a "Milk Bill" covering a supply period, DO NOT create a single aggregated total entry. You MUST identify and split individual items into separate distinct ledger rows inside the "ledger_entries" array:
     1. Gross Milk Sales: Create a separate row. Calculate total liters/quantity and mention it clearly in the 'particulars' field (e.g., 'Milk Sale Collection - 1450.5 Liters').
     2. Head Load Earnings (हेड लोड आय): Create a separate row. This is an INCOME for the society.
-    3. Overhead Earnings (ओवरहेड आय): Create a separate row. This is also an INCOME for the society.
+    3. Overhead Earnings (OVERHEAD आय): Create a separate row. This is also an INCOME for the society.
     4. Ghee Katoti Deduction (घी कटौती खरीद): If any amount is deducted for Ghee under 'घी कटौती', create a separate row treating it as Ghee Purchase (DEBIT / Expense).
 
     The JSON object MUST have exactly these two keys:
@@ -77,29 +68,13 @@ class AIService {
 
     --- Rules for "ledger_entries" ---
     Each transaction object inside the array must have exactly these keys:
-    - date (String: Strictly YYYY-MM-DD format. If a period is given, use the last date of that period).
-    - particulars (String: Clear description in English or Hinglish including quantity like 'Milk Sale Collection - [Liters] Ltr' or 'Head Load Recovery Income').
-    - amount (double: absolute numeric value, no commas or currency symbols).
+    - date (String: Strictly YYYY-MM-DD format).
+    - particulars (String: Clear description in English or Hinglish including quantity like 'Milk Sale Collection - [Liters] Ltr').
+    - amount (double: absolute numeric value).
     - type (String: strictly "DEBIT" or "CREDIT").
     - category (String: strictly one of "Income", "Expense", "Asset", "Liability").
     - doc_type (String: strictly one of "Milk Bill", "Voucher", "Bank Statement", "Other").
-    - account_head (String: You MUST map the transaction strictly to one of these exact string values based on context):
-      * "milk_purchase" -> For raw milk bought/collected from members (Debit, Expense, goes to Trading Account)
-      * "milk_sales" -> For gross milk sold to the Dairy Union (Credit, Income, goes to Trading Account)
-      * "head_load" -> For transport/handling income recovered on the bill (Credit, Income, goes to P&L Account)
-      * "overhead_load" -> For overhead charges income recovered on the bill (Credit, Income, goes to P&L Account)
-      * "ghee_katoti" -> For ghee deduction representing ghee purchase stock (Debit, Expense, goes to Trading Account)
-      * "feed_purchase" -> For purchasing cattle feed/dana stock for society (Debit, Expense, goes to Trading Account)
-      * "feed_sales" -> For selling cattle feed/dana to members (Credit, Income, goes to Trading Account)
-      * "establishment_expense" -> For salaries, secretary honorarium, stationery, refreshments (Debit, Expense, goes to P&L Account)
-      * "audit_fee_provision" -> For audit fees or audit provisions mentioned (Debit, Expense, goes to P&L Account)
-      * "miscellaneous_income" -> For any other small income or penalties collected (Credit, Income, goes to P&L Account)
-      * "share_capital" -> For member share capital deposits or increases (Credit, Liability, goes to Balance Sheet)
-      * "dairy_debtors" -> For outstanding dues receivable from the main dairy union (Debit, Asset, goes to Balance Sheet)
-
-    Accounting Logic Reference:
-    - Money coming IN / Sales / Head Load & Overhead Revenue -> CREDIT (Income)
-    - Money going OUT / Purchases / Ghee Deduction Stock -> DEBIT (Expense)
+    - account_head (String: strictly one of "milk_purchase", "milk_sales", "head_load", "overhead_load", "ghee_katoti", "feed_purchase", "feed_sales", "establishment_expense", "audit_fee_provision", "miscellaneous_income", "share_capital", "dairy_debtors").
     """;
 
     final List<Part> parts = [TextPart(prompt)];
@@ -115,12 +90,24 @@ class AIService {
     final response = await model.generateContent([Content.multi(parts)]);
     String responseText = response.text ?? "{}";
 
-    // क्लीनिंग (मार्कडाउन रिमूवल)
     responseText = responseText.replaceAll('```json', '').replaceAll('```', '').trim();
 
     try {
-      Map<String, dynamic> parsedResult = jsonDecode(responseText);
-      return parsedResult;
+      // 🌟 सुपर फिक्स: डिकोड किए गए डेटा का टाइप चेक करें
+      final dynamic decodedData = jsonDecode(responseText);
+      
+      if (decodedData is Map) {
+        // अगर AI ने सही फॉर्मेट (Map) में दिया है
+        return Map<String, dynamic>.from(decodedData);
+      } else if (decodedData is List) {
+        // 🔥 जादुई कनवर्टर: अगर AI ने चालाकी करके सीधे List भेज दी, तो उसे Map में रैप कर दो
+        return {
+          "ledger_entries": decodedData,
+          "suspicious_notes": ["नोट: AI ने सीधा डेटा एरे भेजा था, जिसे सिस्टम द्वारा ऑटो-फॉर्मेट किया गया।"]
+        };
+      } else {
+        throw Exception("अमान्य JSON स्ट्रक्चर मिला।");
+      }
     } catch (e) {
       throw Exception("AI ने सही ऑडिटिंग फॉर्मेट (JSON) में रिपॉन्स नहीं दिया: $e");
     }
