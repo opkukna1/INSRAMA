@@ -1,4 +1,4 @@
-Name: insrama
+name: insrama
 description: "INS Rama - Dispatch & Audit Management Portal"
 publish_to: 'none'
 
@@ -50,6 +50,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Asset Section Add Karein:
   assets:
     - .env
