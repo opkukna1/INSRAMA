@@ -1,56 +1,22 @@
-name: ins_rama
-description: "INS Rama - AI Powered Cooperative Samiti Auditor and Ledger App"
-publish_to: 'none'
-version: 1.0.0+1
-
-environment:
-  sdk: '>=3.3.0 <4.0.0'
-
 dependencies:
   flutter:
     sdk: flutter
 
-  # यूआई और आइकन्स के लिए
-  cupertino_icons: ^1.0.8
-
-  # बिना इंटरनेट लोकल डिवाइस में डेटा सुरक्षित रखने के लिए (SQLite)
-  sqflite: ^2.3.3+2
-  path: ^1.9.0
-
-  # फोन की गैलरी/स्टोरेज से पीडीएफ बिल सेलेक्ट करने के लिए
+  # Local File Picker & Directory Access
   file_picker: ^8.1.2
-
-  # पीडीएफ बिलों में से टेक्स्ट (लिखावट) रीड करने के लिए
-  syncfusion_flutter_pdf: ^26.1.39
-
-  # एकाउंट्स स्क्रीन से ऑडिट रिपोर्ट पीडीएफ जनरेट और शेयर करने के लिए पैकेजेस
-  pdf: ^3.11.1
-  printing: ^5.13.1
-
-  # 🚀 फिक्स: मास्टर लेजर स्क्रीन से एक्सेल रिपोर्ट को WhatsApp/Email पर शेयर करने के लिए
-  share_plus: ^10.0.0
-
-  # एडमिन पैनल के जेमिनी एआई मॉडल को कनेक्ट करने के लिए
-  google_generative_ai: ^0.4.0
-
-  # तारीखों और खातों को सही फॉर्मेट (जैसे ₹10,000.00) में दिखाने के लिए
-  intl: ^0.19.0
-
-  # .env फाइल से API Key रीड करने के लिए पैकेज जोड़ा गया
-  flutter_dotenv: ^5.1.0
-
-  # एक्सेल रिपोर्ट बनाने और उसे फोन स्टोरेज में सेव करने के लिए पैकेजेस
-  excel: ^4.0.6
   path_provider: ^2.1.4
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
+  # Local Storage (Hive NoSQL DB for fast offline storage)
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
-flutter:
-  uses-material-design: true
+  # Excel Parsing & DOCX Template Filling
+  excel: ^4.0.3
+  docx_template: ^0.4.0
 
-  # .env फाइल को ऐप के एसेट्स में शामिल किया गया ताकि कोड इसे लोड कर सके
-  assets:
-    - .env
+  # Gemini AI Direct Integration (No Backend Needed)
+  google_generative_ai: ^0.4.2
+
+  # Optional Firebase Sync
+  firebase_core: ^3.6.0
+  cloud_firestore: ^5.4.4
