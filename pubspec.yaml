@@ -14,6 +14,7 @@ dependencies:
   # Local File Picker & Directory Access
   file_picker: ^8.1.2
   path_provider: ^2.1.4
+  path: ^1.9.0
 
   # Local Storage (Hive NoSQL DB for fast offline storage)
   hive: ^2.2.3
@@ -29,6 +30,11 @@ dependencies:
   # Environment Variables & Preferences
   flutter_dotenv: ^5.1.0
   shared_preferences: ^2.2.3
+
+  # Sharing & Direct Printing
+  share_plus: ^10.0.0
+  printing: ^5.13.0
+  pdf: ^3.11.0
 
   # Optional Firebase Sync
   firebase_core: ^3.6.0
