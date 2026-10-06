@@ -54,16 +54,22 @@ jobs:
       - name: Generate Hive Models
         run: flutter pub run build_runner build --delete-conflicting-outputs
 
-      - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons --target-platform android-arm,android-arm64,android-x64
+      - name: Build Release APK via Direct Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
 
       - name: Locate and Check Generated APK
         run: |
           echo "Listing generated APK files:"
           find build/ -name "*.apk" || true
+          find android/app/build/ -name "*.apk" || true
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/**/*.apk
+          path: |
+            build/app/outputs/**/*.apk
+            android/app/build/outputs/**/*.apk
