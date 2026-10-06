@@ -39,26 +39,17 @@ jobs:
           echo "flutter.compileSdkVersion=36" >> android/local.properties
           echo "flutter.ndkVersion=26.1.10909125" >> android/local.properties
 
-      - name: Force compileSdk 36 via Plugin Hooks
+      - name: Force compileSdk 36 for All Plugins
         run: |
           cat << 'EOF' >> android/build.gradle.kts
 
           subprojects {
-              fun applySdkOverride(p: Project) {
-                  val androidExt = p.extensions.findByName("android") ?: return
-                  try {
-                      val method = androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
-                      method.invoke(androidExt, 36)
-                  } catch (_: Exception) {
-                      try {
-                          val method = androidExt.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
-                          method.invoke(androidExt, 36)
-                      } catch (_: Exception) {}
-                  }
+              plugins.withId("com.android.library") {
+                  (project.extensions.findByName("android") as? com.android.build.gradle.BaseExtension)?.compileSdkVersion(36)
               }
-
-              plugins.withId("com.android.library") { applySdkOverride(this@subprojects) }
-              plugins.withId("com.android.application") { applySdkOverride(this@subprojects) }
+              plugins.withId("com.android.application") {
+                  (project.extensions.findByName("android") as? com.android.build.gradle.BaseExtension)?.compileSdkVersion(36)
+              }
           }
           EOF
 
