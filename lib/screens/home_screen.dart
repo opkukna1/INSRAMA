@@ -12,7 +12,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Files
+  // Files State
   Uint8List? _excelBytes;
   String? _excelFileName;
   Uint8List? _docxBytes;
@@ -55,13 +55,17 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setString('gemini_api_key', value);
   }
 
-  // Load Master Mapping Data into Dropdowns
+  // Load Mapping Data into Dropdowns
   void _loadMappingDropdowns() {
     setState(() {
       _districtsList = _dispatchService.getAvailableDistricts();
-      if (_districtsList.isNotEmpty && _selectedDistrict == null) {
+      if (_districtsList.isNotEmpty) {
         _selectedDistrict = _districtsList.first;
         _updatePanchayatSamitis(_selectedDistrict!);
+      } else {
+        _selectedDistrict = null;
+        _psList = [];
+        _gpList = [];
       }
     });
   }
@@ -122,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _startProcessing() async {
     if (_excelBytes == null || _docxBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Kripya Excel aur DOCX Template dono upload karein.")),
+        const SnackBar(content: Text("Kripya Excel aur DOCX Template dono select karein.")),
       );
       return;
     }
@@ -137,6 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
       String resultPath = await service.processDispatchLocal(
         excelBytes: _excelBytes!,
         docxBytes: _docxBytes!,
+        selectedYear: _selectedYear,
         onProgress: (status) {
           setState(() {
             _statusMessage = status;
@@ -144,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
 
-      // Refresh Dropdowns after processing (if new mappings added via AI)
+      // Processing ke baad nayi mappings se dropdowns update karein
       _loadMappingDropdowns();
 
       setState(() {
@@ -174,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Filter / Configuration Selection Card
+            // 1. Dynamic Dropdowns Filter Card
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
@@ -182,14 +187,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Master Filter & Mapping Controls",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green)),
+                    Text("Master Filter & Local Mappings",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green.shade800)),
                     const SizedBox(height: 12),
 
                     // Year Dropdown
                     DropdownButtonFormField<String>(
                       value: _selectedYear,
-                      decoration: const InputDecoration(labelText: "Year Select Karein", border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: "Audit Year Select Karein", border: OutlineInputBorder()),
                       items: _yearsList.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
                       onChanged: (val) => setState(() => _selectedYear = val!),
                     ),
@@ -206,11 +211,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Panchayat Samiti Dynamic Dropdown
+                    // Dependent Panchayat Samiti Dropdown
                     DropdownButtonFormField<String>(
                       value: _selectedPS,
                       decoration: const InputDecoration(
-                          labelText: "Panchayat Samiti (Mapping se auto-filtered)", border: OutlineInputBorder()),
+                          labelText: "Panchayat Samiti (Filtered)", border: OutlineInputBorder()),
                       items: _psList.map((ps) => DropdownMenuItem(value: ps, child: Text(ps))).toList(),
                       onChanged: (val) {
                         if (val != null && _selectedDistrict != null) {
@@ -220,11 +225,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Gram Panchayat Dynamic Dropdown
+                    // Dependent Gram Panchayat Dropdown
                     DropdownButtonFormField<String>(
                       value: _selectedGP,
                       decoration: const InputDecoration(
-                          labelText: "Gram Panchayat (Mapping se auto-filtered)", border: OutlineInputBorder()),
+                          labelText: "Gram Panchayat (Filtered)", border: OutlineInputBorder()),
                       items: _gpList.map((gp) => DropdownMenuItem(value: gp, child: Text(gp))).toList(),
                       onChanged: (val) => setState(() => _selectedGP = val),
                     ),
@@ -259,14 +264,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 3. Gemini API Key Configuration
+            // 3. Gemini API Key Configuration Card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: TextField(
                   controller: _apiKeyController,
                   decoration: const InputDecoration(
-                    labelText: "Gemini API Key (Unmapped Entries Transliteration ke liye)",
+                    labelText: "Gemini API Key (Auto Transliteration)",
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.auto_awesome),
                   ),
@@ -292,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Status Progress Message
+            // Status Message Display
             if (_statusMessage.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(12),
