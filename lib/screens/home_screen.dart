@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -13,13 +12,27 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Files
   Uint8List? _excelBytes;
   String? _excelFileName;
-
   Uint8List? _docxBytes;
   String? _docxFileName;
 
+  // Dropdown Selections
+  String _selectedYear = '2026-2027';
+  String? _selectedDistrict;
+  String? _selectedPS;
+  String? _selectedGP;
+
+  // Lists for Dropdowns
+  List<String> _districtsList = [];
+  List<String> _psList = [];
+  List<String> _gpList = [];
+
+  final List<String> _yearsList = ['2024-2025', '2025-2026', '2026-2027', '2027-2028'];
   final TextEditingController _apiKeyController = TextEditingController();
+  final DispatchService _dispatchService = DispatchService(geminiApiKey: '');
+
   bool _isProcessing = false;
   String _statusMessage = "";
 
@@ -27,9 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadApiKey();
+    _loadMappingDropdowns();
   }
 
-  // Load saved Gemini API Key
   Future<void> _loadApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -37,13 +50,45 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Save Gemini API Key locally
   Future<void> _saveApiKey(String value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('gemini_api_key', value);
   }
 
-  // Pick Excel Dispatch File
+  // Load Master Mapping Data into Dropdowns
+  void _loadMappingDropdowns() {
+    setState(() {
+      _districtsList = _dispatchService.getAvailableDistricts();
+      if (_districtsList.isNotEmpty && _selectedDistrict == null) {
+        _selectedDistrict = _districtsList.first;
+        _updatePanchayatSamitis(_selectedDistrict!);
+      }
+    });
+  }
+
+  void _updatePanchayatSamitis(String district) {
+    setState(() {
+      _selectedDistrict = district;
+      _psList = _dispatchService.getPanchayatSamitisForDistrict(district);
+      _selectedPS = _psList.isNotEmpty ? _psList.first : null;
+      if (_selectedPS != null) {
+        _updateGramPanchayats(district, _selectedPS!);
+      } else {
+        _gpList = [];
+        _selectedGP = null;
+      }
+    });
+  }
+
+  void _updateGramPanchayats(String district, String ps) {
+    setState(() {
+      _selectedPS = ps;
+      _gpList = _dispatchService.getGramPanchayatsForPS(district, ps);
+      _selectedGP = _gpList.isNotEmpty ? _gpList.first : null;
+    });
+  }
+
+  // File Pickers
   Future<void> _pickExcel() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -59,7 +104,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Pick DOCX Template File
   Future<void> _pickDocx() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -75,18 +119,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Process Dispatch Files Locally
   Future<void> _startProcessing() async {
     if (_excelBytes == null || _docxBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Kripya Excel aur DOCX Template dono select karein.")),
+        const SnackBar(content: Text("Kripya Excel aur DOCX Template dono upload karein.")),
       );
       return;
     }
 
     setState(() {
       _isProcessing = true;
-      _statusMessage = "Processing shuru ho rahi hai...";
+      _statusMessage = "Dispatch process shuru ho raha hai...";
     });
 
     try {
@@ -101,15 +144,12 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
 
+      // Refresh Dropdowns after processing (if new mappings added via AI)
+      _loadMappingDropdowns();
+
       setState(() {
         _statusMessage = "✓ $resultPath";
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Covering Letters successfully generate ho gaye!")),
-        );
-      }
     } catch (e) {
       setState(() {
         _statusMessage = "Error: ${e.toString()}";
@@ -125,8 +165,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Audit Dispatch Portal"),
-        backgroundColor: Colors.indigo,
+        title: const Text("INS Rama - Dispatch Portal"),
+        backgroundColor: Colors.green.shade700,
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -134,92 +174,134 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // API Key Settings Card
+            // 1. Filter / Configuration Selection Card
             Card(
-              elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: TextField(
-                  controller: _apiKeyController,
-                  decoration: const InputDecoration(
-                    labelText: "Gemini API Key (Local Auto-Save)",
-                    hintText: "Enter Gemini API Key",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.key),
-                  ),
-                  onChanged: _saveApiKey,
+                padding: const EdgeInsets.all(14.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Master Filter & Mapping Controls",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green)),
+                    const SizedBox(height: 12),
+
+                    // Year Dropdown
+                    DropdownButtonFormField<String>(
+                      value: _selectedYear,
+                      decoration: const InputDecoration(labelText: "Year Select Karein", border: OutlineInputBorder()),
+                      items: _yearsList.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
+                      onChanged: (val) => setState(() => _selectedYear = val!),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // District Dropdown
+                    DropdownButtonFormField<String>(
+                      value: _selectedDistrict,
+                      decoration: const InputDecoration(labelText: "District Select Karein", border: OutlineInputBorder()),
+                      items: _districtsList.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                      onChanged: (val) {
+                        if (val != null) _updatePanchayatSamitis(val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Panchayat Samiti Dynamic Dropdown
+                    DropdownButtonFormField<String>(
+                      value: _selectedPS,
+                      decoration: const InputDecoration(
+                          labelText: "Panchayat Samiti (Mapping se auto-filtered)", border: OutlineInputBorder()),
+                      items: _psList.map((ps) => DropdownMenuItem(value: ps, child: Text(ps))).toList(),
+                      onChanged: (val) {
+                        if (val != null && _selectedDistrict != null) {
+                          _updateGramPanchayats(_selectedDistrict!, val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Gram Panchayat Dynamic Dropdown
+                    DropdownButtonFormField<String>(
+                      value: _selectedGP,
+                      decoration: const InputDecoration(
+                          labelText: "Gram Panchayat (Mapping se auto-filtered)", border: OutlineInputBorder()),
+                      items: _gpList.map((gp) => DropdownMenuItem(value: gp, child: Text(gp))).toList(),
+                      onChanged: (val) => setState(() => _selectedGP = val),
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
 
-            // Upload Dispatch Excel Button
-            ElevatedButton.icon(
-              onPressed: _pickExcel,
-              icon: const Icon(Icons.table_chart, color: Colors.green),
-              label: Text(_excelFileName ?? "1. Upload Dispatch Excel (.xlsx)"),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                alignment: Alignment.centerLeft,
+            // 2. Upload Files Card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Column(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _pickExcel,
+                      icon: const Icon(Icons.table_chart, color: Colors.green),
+                      label: Text(_excelFileName ?? "1. Dispatch Excel Upload (.xlsx)"),
+                      style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      onPressed: _pickDocx,
+                      icon: const Icon(Icons.description, color: Colors.blue),
+                      label: Text(_docxFileName ?? "2. DOCX Template Upload (.docx)"),
+                      style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // Upload DOCX Template Button
-            ElevatedButton.icon(
-              onPressed: _pickDocx,
-              icon: const Icon(Icons.description, color: Colors.blue),
-              label: Text(_docxFileName ?? "2. Upload Covering Letter Template (.docx)"),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                alignment: Alignment.centerLeft,
+            // 3. Gemini API Key Configuration
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: TextField(
+                  controller: _apiKeyController,
+                  decoration: const InputDecoration(
+                    labelText: "Gemini API Key (Unmapped Entries Transliteration ke liye)",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.auto_awesome),
+                  ),
+                  onChanged: _saveApiKey,
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Start Process Button
+            // Process Button
             ElevatedButton(
               onPressed: _isProcessing ? null : _startProcessing,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
+                backgroundColor: Colors.green.shade700,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: _isProcessing
-                  ? const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        ),
-                        SizedBox(width: 12),
-                        Text("Processing in Progress..."),
-                      ],
-                    )
-                  : const Text("Process & Generate Covering Letters", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("Process Dispatch & Generate Documents",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // Status Progress Message
             if (_statusMessage.isNotEmpty)
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.indigo.shade200),
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade300),
                 ),
-                child: Text(
-                  _statusMessage,
-                  style: TextStyle(
-                    color: _statusMessage.startsWith("Error") ? Colors.red : Colors.indigo.shade900,
-                    fontWeight: FontWeight: FontWeight.w500,
-                  ),
-                ),
+                child: Text(_statusMessage, style: const TextStyle(fontWeight: FontWeight.w500)),
               ),
           ],
         ),
