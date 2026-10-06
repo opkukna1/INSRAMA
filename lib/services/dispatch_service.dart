@@ -2,7 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
 import 'package:excel/excel.dart';
-import 'package:docx_template/docx_template.dart';
+import 'package:docx_template/docx_template.dart' as docx hide Content;
+import 'package:docx_template/docx_template.dart' show TextContent;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:path_provider/path_provider.dart';
@@ -161,6 +162,7 @@ class DispatchService {
         ]
         ''';
 
+        // Here Content refers to google_generative_ai Content
         final response = await model.generateContent([Content.text(prompt)]);
         String resText = response.text?.trim() ?? '';
 
@@ -195,7 +197,7 @@ class DispatchService {
 
     // 4. DOCX Covering Letters Generation
     onProgress("Covering Letters generated ho rahe hain...");
-    final docxTemplate = await DocxTemplate.fromBytes(docxBytes);
+    final docxTemplate = await docx.DocxTemplate.fromBytes(docxBytes);
 
     final outputDir = await getApplicationDocumentsDirectory();
     final saveFolder = Directory(p.join(outputDir.path, "Covering_Letters_${DateTime.now().millisecondsSinceEpoch}"));
@@ -217,8 +219,8 @@ class DispatchService {
       String dateStr = colApprovalDate != -1 ? (row[colApprovalDate]?.value?.toString().trim() ?? '06/10/2026') : '06/10/2026';
       int paraCount = colParas != -1 ? int.tryParse(row[colParas]?.value?.toString() ?? '0') ?? 0 : 0;
 
-      // Fill Content Context
-      Content c = Content();
+      // Fill Content Context using docx.Content()
+      docx.Content c = docx.Content();
       c.add(TextContent("OFFICE_NAME", mapItem?.distHi ?? 'बीकानेर'));
       c.add(TextContent("DIVISION_NAME", mapItem?.distHi ?? 'बीकानेर'));
       c.add(TextContent("YEAR", selectedYear));
