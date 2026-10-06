@@ -29,6 +29,13 @@ jobs:
           rm -rf android
           flutter create . --platforms=android --org com.insrama.app
 
+      - name: Override compileSdk to 36
+        run: |
+          sed -i 's/compileSdk = .*/compileSdk = 36/' android/app/build.gradle || true
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 36/' android/app/build.gradle || true
+          sed -i 's/compileSdk 34/compileSdk 36/' android/app/build.gradle || true
+          sed -i 's/compileSdkVersion 34/compileSdkVersion 36/' android/app/build.gradle || true
+
       - name: Install Dependencies
         run: flutter pub get
 
