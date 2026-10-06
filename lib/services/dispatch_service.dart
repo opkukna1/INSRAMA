@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:excel/excel.dart';
 import 'package:docx_template/docx_template.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -21,15 +22,66 @@ class DispatchService {
         .toLowerCase();
   }
 
-  /// Process uploaded Excel and Word Template completely on-device
+  // ==========================================
+  // LOCAL MAPPING DROPDOWN HELPERS
+  // ==========================================
+
+  /// Local Hive DB se saare Unique Districts ki List nikalna
+  List<String> getAvailableDistricts() {
+    if (!Hive.isBoxOpen('mappings_box')) return [];
+    final box = Hive.box<MappingModel>('mappings_box');
+    final districts = box.values
+        .map((e) => e.distHi.isNotEmpty ? e.distHi : e.distEn)
+        .where((element) => element.isNotEmpty)
+        .toSet()
+        .toList();
+    districts.sort();
+    return districts;
+  }
+
+  /// Selected District ke basis par Panchayat Samitis ki List
+  List<String> getPanchayatSamitisForDistrict(String district) {
+    if (!Hive.isBoxOpen('mappings_box')) return [];
+    final box = Hive.box<MappingModel>('mappings_box');
+    final psList = box.values
+        .where((e) => (e.distHi == district || e.distEn == district))
+        .map((e) => e.psHi.isNotEmpty ? e.psHi : e.psEn)
+        .where((element) => element.isNotEmpty)
+        .toSet()
+        .toList();
+    psList.sort();
+    return psList;
+  }
+
+  /// Selected Panchayat Samiti ke basis par Gram Panchayats ki List
+  List<String> getGramPanchayatsForPS(String district, String ps) {
+    if (!Hive.isBoxOpen('mappings_box')) return [];
+    final box = Hive.box<MappingModel>('mappings_box');
+    final gpList = box.values
+        .where((e) => 
+            (e.distHi == district || e.distEn == district) &&
+            (e.psHi == ps || e.psEn == ps))
+        .map((e) => e.gpHi.isNotEmpty ? e.gpHi : e.gpEn)
+        .where((element) => element.isNotEmpty)
+        .toSet()
+        .toList();
+    gpList.sort();
+    return gpList;
+  }
+
+  // ==========================================
+  // DISPATCH PROCESSING LOGIC
+  // ==========================================
+
   Future<String> processDispatchLocal({
     required Uint8List excelBytes,
     required Uint8List docxBytes,
+    required String selectedYear,
     required Function(String status) onProgress,
   }) async {
     final box = Hive.box<MappingModel>('mappings_box');
 
-    // 1. Parse Excel Data
+    // 1. Read Excel File
     onProgress("Excel file padhi ja rahi hai...");
     var excel = Excel.decodeBytes(excelBytes);
     var table = excel.tables[excel.tables.keys.first];
@@ -38,7 +90,7 @@ class DispatchService {
       throw Exception("Excel file khaali hai ya format sahi nahi hai.");
     }
 
-    // Find Header Indexes
+    // Header Columns Identify
     List<Data?> headerRow = table.rows.first;
     int colUnitName = -1;
     int colParentName = -1;
@@ -84,29 +136,64 @@ class DispatchService {
       }
     }
 
-    // 3. Gemini AI Direct Transliteration if new entries exist
+    // 3. Gemini AI Transliteration (Unmapped items ke liye)
     if (unmappedList.isNotEmpty && geminiApiKey.isNotEmpty) {
       onProgress("${unmappedList.length} Nayi entries mili hain. Gemini AI se Hindi transliteration chal raha hai...");
-      
-      final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: geminiApiKey);
-      final prompt = '''
-      You are an official Hindi transliterator for Rajasthan Government documents.
-      Convert these names to Hindi JSON format:
-      ${unmappedList.toString()}
 
-      Return strictly a JSON list:
-      [{"GP_EN": "...", "GP_HI": "...", "PS_EN": "...", "PS_HI": "...", "DIST_EN": "...", "DIST_HI": "..."}]
-      ''';
+      try {
+        final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: geminiApiKey);
+        final prompt = '''
+        You are an official administrative Hindi transliterator for Rajasthan Government documents.
+        Convert the following list to official Hindi.
 
-      final response = await model.generateContent([Content.text(prompt)]);
-      final text = response.text ?? '';
+        Data: ${jsonEncode(unmappedList)}
 
-      // Simple regex JSON parser or store
-      // Update Hive DB with new mappings
-      onProgress("Naye Hindi names Local Database mein save ho rahe hain...");
+        Return ONLY a JSON Array with exact structure:
+        [
+          {
+            "GP_EN": "...",
+            "GP_HI": "...",
+            "PS_EN": "...",
+            "PS_HI": "...",
+            "DIST_EN": "...",
+            "DIST_HI": "..."
+          }
+        ]
+        ''';
+
+        final response = await model.generateContent([Content.text(prompt)]);
+        String resText = response.text?.trim() ?? '';
+
+        if (resText.startsWith("```json")) {
+          resText = resText.substring(7, resText.length - 3).trim();
+        } else if (resText.startsWith("```")) {
+          resText = resText.substring(3, resText.length - 3).trim();
+        }
+
+        List<dynamic> parsedList = jsonDecode(resText);
+        for (var item in parsedList) {
+          String gpEn = item["GP_EN"] ?? "";
+          String psEn = item["PS_EN"] ?? "";
+
+          MappingModel newMapping = MappingModel(
+            gpEn: gpEn,
+            gpHi: item["GP_HI"] ?? gpEn,
+            psEn: psEn,
+            psHi: item["PS_HI"] ?? psEn,
+            distEn: item["DIST_EN"] ?? "",
+            distHi: item["DIST_HI"] ?? "बीकानेर",
+          );
+
+          // Save to Hive DB
+          await box.put(newMapping.keyName, newMapping);
+        }
+        onProgress("Naye Hindi names Local DB mein save ho gaye hain.");
+      } catch (e) {
+        onProgress("AI Translation Warning: $e");
+      }
     }
 
-    // 4. Generate DOCX Output Files
+    // 4. DOCX Covering Letters Generation
     onProgress("Covering Letters generated ho rahe hain...");
     final docxTemplate = await DocxTemplate.fromBytes(docxBytes);
 
@@ -134,7 +221,7 @@ class DispatchService {
       Content c = Content();
       c.add(TextContent("OFFICE_NAME", mapItem?.distHi ?? 'बीकानेर'));
       c.add(TextContent("DIVISION_NAME", mapItem?.distHi ?? 'बीकानेर'));
-      c.add(TextContent("YEAR", "2026-2027"));
+      c.add(TextContent("YEAR", selectedYear));
       c.add(TextContent("DISPATCH_NO", dispatchNo));
       c.add(TextContent("DATE", dateStr));
       c.add(TextContent("PS_NAME_HI", mapItem?.psHi ?? psEn));
@@ -152,6 +239,6 @@ class DispatchService {
       }
     }
 
-    return "$generatedCount Files successfully save ho gayi hain folder: ${saveFolder.path}";
+    return "$generatedCount Files successfully save ho gayi hain: ${saveFolder.path}";
   }
 }
