@@ -1,15 +1,22 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // 🚀 फिक्स 1: .env फ़ाइल लोड करने के लिए इम्पोर्ट जोड़ा
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // .env फ़ाइल लोड करने के लिए इम्पोर्ट
+import 'package:hive_flutter/hive_flutter.dart'; // Local storage ke liye Hive
+import 'models/mapping_model.dart';
 import 'screens/home_screen.dart';
 
-void main() async { // 🚀 फिक्स 2: फंक्शन को async बनाया
-  // यह सुनिश्चित करता है कि ऐप शुरू होने से पहले SQLite डेटाबेस प्लगइन्स ठीक से इनिशियलाइज़ हो जाएँ
+void main() async {
+  // यह सुनिश्चित करता है कि ऐप शुरू होने से पहले प्लगइन्स ठीक से इनिशियलाइज़ हो जाएँ
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 🚀 फिक्स 3: ऐप स्टार्ट होने से ठीक पहले .env फ़ाइल लोड करना ज़रूरी है!
-  await dotenv.load(fileName: ".env"); 
-  
+  // 1. .env फ़ाइल लोड करना
+  await dotenv.load(fileName: ".env");
+
+  // 2. Local Storage (Hive DB) को इनिशियलाइज़ करना
+  await Hive.initFlutter();
+  Hive.registerAdapter(MappingModelAdapter());
+  await Hive.openBox<MappingModel>('mappings_box');
+
   runApp(const InsRamaApp());
 }
 
@@ -29,11 +36,12 @@ class InsRamaApp extends StatelessWidget {
           secondary: Colors.orange.shade700,
         ),
         
-        // पूरे ऐप के कार्ड्स के लिए 'CardThemeData' का उपयोग किया है ताकि टाइप एरर न आए।
+        // पूरे ऐप के कार्ड्स के लिए 'CardThemeData' का उपयोग
         cardTheme: const CardThemeData(
           elevation: 2,
           margin: EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         ),
+        useMaterial3: true,
       ),
       
       // होम स्क्रीन को डिफ़ॉल्ट स्क्रीन सेट करना
