@@ -23,7 +23,7 @@ class DispatchService {
   }
 
   // ==========================================
-  // LOCAL MAPPING DROPDOWN HELPERS
+  // LOCAL MAPPING DROPDOWN HELPERS (FIXED)
   // ==========================================
 
   /// Local Hive DB se saare Unique Districts ki List nikalna
@@ -33,10 +33,11 @@ class DispatchService {
     final districts = box.values
         .map((e) => e.distHi.isNotEmpty ? e.distHi : e.distEn)
         .where((element) => element.isNotEmpty)
-        .toSet()
-        .toList();
-    districts.sort();
-    return districts;
+        .toSet();
+    
+    // List.from se Modifiable List banayein fir sort karein
+    final sortedList = List<String>.from(districts)..sort();
+    return sortedList;
   }
 
   /// Selected District ke basis par Panchayat Samitis ki List
@@ -47,10 +48,11 @@ class DispatchService {
         .where((e) => (e.distHi == district || e.distEn == district))
         .map((e) => e.psHi.isNotEmpty ? e.psHi : e.psEn)
         .where((element) => element.isNotEmpty)
-        .toSet()
-        .toList();
-    psList.sort();
-    return psList;
+        .toSet();
+
+    // List.from se Modifiable List banayein fir sort karein
+    final sortedList = List<String>.from(psList)..sort();
+    return sortedList;
   }
 
   /// Selected Panchayat Samiti ke basis par Gram Panchayats ki List
@@ -63,14 +65,15 @@ class DispatchService {
             (e.psHi == ps || e.psEn == ps))
         .map((e) => e.gpHi.isNotEmpty ? e.gpHi : e.gpEn)
         .where((element) => element.isNotEmpty)
-        .toSet()
-        .toList();
-    gpList.sort();
-    return gpList;
+        .toSet();
+
+    // List.from se Modifiable List banayein fir sort karein
+    final sortedList = List<String>.from(gpList)..sort();
+    return sortedList;
   }
 
   // ==========================================
-  // DISPATCH PROCESSING LOGIC
+  // DISPATCH PROCESSING LOGIC (OPTIMIZED)
   // ==========================================
 
   Future<String> processDispatchLocal({
@@ -193,8 +196,10 @@ class DispatchService {
       }
     }
 
-    // 4. DOCX Covering Letters Generation
-    onProgress("Covering Letters generated ho rahe hain...");
+    // 4. DOCX Covering Letters Generation (Optimized Loop)
+    onProgress("Covering Letters generate ho rahe hain...");
+    
+    // DocxTemplate ko ek baar parse karein loop ke bahar
     final docxTemplate = await DocxTemplate.fromBytes(docxBytes);
 
     final outputDir = await getApplicationDocumentsDirectory();
