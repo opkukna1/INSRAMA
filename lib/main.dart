@@ -8,14 +8,32 @@ import 'screens/home_screen.dart';
 void main() async {
   // यह सुनिश्चित करता है कि ऐप शुरू होने से पहले प्लगइन्स ठीक से इनिशियलाइज़ हो जाएँ
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 1. .env फ़ाइल लोड करना
-  await dotenv.load(fileName: ".env");
 
-  // 2. Local Storage (Hive DB) को इनिशियलाइज़ करना
-  await Hive.initFlutter();
-  Hive.registerAdapter(MappingModelAdapter());
-  await Hive.openBox<MappingModel>('mappings_box');
+  // Screen Crash Catching - Release APK mein errors console par log karne ke liye
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+  };
+
+  // 1. .env फ़ाइल को Safely लोड करना (अगर .env फाइल ना मिले तो ऐप क्रैश नहीं होगा)
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint(".env file not found or failed to load: $e");
+  }
+
+  // 2. Local Storage (Hive DB) को Safely इनिशियलाइज़ करना
+  try {
+    await Hive.initFlutter();
+    
+    // Adapter pehle se registered na ho tabhi register karein
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(MappingModelAdapter());
+    }
+    
+    await Hive.openBox<MappingModel>('mappings_box');
+  } catch (e) {
+    debugPrint("Hive Initialization Error: $e");
+  }
 
   runApp(const InsRamaApp());
 }
@@ -43,6 +61,25 @@ class InsRamaApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
+
+      // अगर ऐप में कोई अनहैंडल्ड रनटाइम एरर आये तो रेड स्क्रीन की जगह साफ टेक्स्ट दिखेगा
+      builder: (context, child) {
+        ErrorWidget.builder = (FlutterErrorDetails details) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  "App Initialization Error:\n${details.exception}",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              ),
+            ),
+          );
+        };
+        return child!;
+      },
       
       // होम स्क्रीन को डिफ़ॉल्ट स्क्रीन सेट करना
       home: const HomeScreen(),
