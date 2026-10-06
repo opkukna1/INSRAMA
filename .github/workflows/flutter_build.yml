@@ -34,27 +34,32 @@ jobs:
           rm -rf android
           flutter create . --platforms=android --org com.insrama.app
 
-      - name: Configure SDK & NDK Versions
+      - name: Configure local.properties
         run: |
           echo "flutter.compileSdkVersion=36" >> android/local.properties
-          # GitHub Actions me pre-installed stable NDK version force karein (Download corruption se bachne ke liye)
           echo "flutter.ndkVersion=26.1.10909125" >> android/local.properties
+
+      - name: Force compileSdk 36 for All Plugins (Kotlin DSL)
+        run: |
+          cat << 'EOF' >> android/build.gradle.kts
+
+          subprojects {
+              afterEvaluate {
+                  val androidExt = project.extensions.findByName("android")
+                  if (androidExt != null) {
+                      try {
+                          val method = androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
+                          method.invoke(androidExt, 36)
+                      } catch (e: Exception) {
+                          // Ignore if plugin does not have android extension
+                      }
+                  }
+              }
+          }
+          EOF
 
       - name: Install Dependencies
         run: flutter pub get
-
-      - name: Patch Plugins & Force NDK
-        run: |
-          export PUB_DIR="${PUB_CACHE:-$HOME/.pub-cache}"
-          echo "Patching pub cache at $PUB_DIR"
-          
-          # Plugins ko compileSdk 36 par force karein
-          find "$PUB_DIR" -type f -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/g' {} + || true
-          find "$PUB_DIR" -type f -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 36/g' {} + || true
-          find "$PUB_DIR" -type f -name "build.gradle.kts" -exec sed -i 's/compileSdk = [0-9]*/compileSdk = 36/g' {} + || true
-          
-          # build.gradle.kts me NDK version forcefully inject karein
-          sed -i 's/ndkVersion = flutter.ndkVersion/ndkVersion = "26.1.10909125"/g' android/app/build.gradle.kts || true
 
       - name: Accept Android Licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
