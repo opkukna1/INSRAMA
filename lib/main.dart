@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart'; // .env फ़ाइल ल
 import 'package:hive_flutter/hive_flutter.dart'; // Local storage ke liye Hive
 import 'models/mapping_model.dart';
 import 'screens/home_screen.dart';
+import 'services/dispatch_service.dart';
 
 void main() async {
   // यह सुनिश्चित करता है कि ऐप शुरू होने से पहले प्लगइन्स ठीक से इनिशियलाइज़ हो जाएँ
@@ -43,6 +44,12 @@ class InsRamaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // .env se Gemini API Key fetch karna
+    final String apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+
+    // DispatchService ka instance create karna
+    final dispatchService = DispatchService(geminiApiKey: apiKey);
+
     return MaterialApp(
       title: 'INS Rama',
       
@@ -81,8 +88,8 @@ class InsRamaApp extends StatelessWidget {
         return child!;
       },
       
-      // होम स्क्रीन को डिफ़ॉल्ट स्क्रीन सेट करना
-      home: const HomeScreen(),
+      // dispatchService parameter ke saath HomeScreen load karna
+      home: HomeScreen(dispatchService: dispatchService),
       
       // ऊपर से लाल रंग का डिबग बैनर हटाने के लिए
       debugShowCheckedModeBanner: false,
