@@ -34,25 +34,22 @@ jobs:
           rm -rf android
           flutter create . --platforms=android --org com.insrama.app
 
-      - name: Force compileSdk 36 Globally for App and All Plugins
+      - name: Set App compileSdk
         run: |
           echo "flutter.compileSdkVersion=36" >> android/local.properties
-          
-          cat << 'EOF' >> android/app/build.gradle
-          
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty('android')) {
-                      project.android {
-                          compileSdkVersion 36
-                      }
-                  }
-              }
-          }
-          EOF
 
       - name: Install Dependencies
         run: flutter pub get
+
+      - name: Patch Plugins compileSdk to 36
+        run: |
+          # Plugins ki build.gradle files me directly SDK 36 patch karna (Gradle syntax error se bachne ke liye)
+          export PUB_DIR="${PUB_CACHE:-$HOME/.pub-cache}"
+          echo "Patching pub cache at $PUB_DIR"
+          
+          find "$PUB_DIR" -type f -name "build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/g' {} + || true
+          find "$PUB_DIR" -type f -name "build.gradle" -exec sed -i 's/compileSdk [0-9]*/compileSdk 36/g' {} + || true
+          find "$PUB_DIR" -type f -name "build.gradle.kts" -exec sed -i 's/compileSdk = [0-9]*/compileSdk = 36/g' {} + || true
 
       - name: Generate Hive Models
         run: flutter pub run build_runner build --delete-conflicting-outputs
