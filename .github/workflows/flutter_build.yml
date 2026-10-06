@@ -1,4 +1,4 @@
-name: Build Android APK
+Name: Build Android APK
 
 on:
   push:
@@ -24,29 +24,19 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Create Dummy .env File
+        run: |
+          touch .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+
       - name: Re-create Android Platform Files
         run: |
           rm -rf android
           flutter create . --platforms=android --org com.insrama.app
 
-      - name: Force compileSdk 36 globally for App and All Plugins
+      - name: Configure Gradle compileSdk
         run: |
-          # 1. Update local.properties
           echo "flutter.compileSdkVersion=36" >> android/local.properties
-          
-          # 2. Force subprojects/plugins to compile against SDK 36 in root build.gradle
-          cat << 'EOF' >> android/build.gradle
-
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty('android')) {
-                      project.android {
-                          compileSdkVersion 36
-                      }
-                  }
-              }
-          }
-          EOF
 
       - name: Install Dependencies
         run: flutter pub get
@@ -54,22 +44,16 @@ jobs:
       - name: Generate Hive Models
         run: flutter pub run build_runner build --delete-conflicting-outputs
 
-      - name: Build Release APK via Direct Gradle
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease
+      - name: Build Release APK
+        run: flutter build apk --release
 
       - name: Locate and Check Generated APK
         run: |
           echo "Listing generated APK files:"
           find build/ -name "*.apk" || true
-          find android/app/build/ -name "*.apk" || true
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: |
-            build/app/outputs/**/*.apk
-            android/app/build/outputs/**/*.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
