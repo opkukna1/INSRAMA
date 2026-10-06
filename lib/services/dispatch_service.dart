@@ -7,6 +7,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_generative_ai/google_generative_ai.dart' as ai;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart';
 import '../models/mapping_model.dart';
 
 class DispatchService {
@@ -15,18 +17,42 @@ class DispatchService {
   DispatchService({required this.geminiApiKey});
 
   String _normalize(String input) {
-    return input
-        .replaceAll("Gram Panchayat ", "")
-        .replaceAll("Panchayat Samiti ", "")
-        .trim()
-        .toLowerCase();
+    String s = input.trim().toLowerCase();
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    s = s.replaceAll("gram panchayat", "").replaceAll("panchayat samiti", "").trim();
+    return s;
   }
 
-  // ==========================================
-  // LOCAL MAPPING DROPDOWN HELPERS (FIXED)
-  // ==========================================
+  String _clean(dynamic value) {
+    if (value == null) return "";
+    return value.toString().trim();
+  }
 
-  /// Local Hive DB se saare Unique Districts ki List nikalna
+  String _formatDispatchNo(String value) {
+    String s = _clean(value);
+    RegExp hyphenReg = RegExp(r'-(\d+)-');
+    var match = hyphenReg.firstMatch(s);
+    if (match != null) return match.group(1)!;
+
+    RegExp numReg = RegExp(r'\b(\d+)\b');
+    match = numReg.firstMatch(s);
+    if (match != null) return match.group(1)!;
+
+    return s;
+  }
+
+  String _paraPlusOne(dynamic value) {
+    String s = _clean(value);
+    if (s.isEmpty) return "";
+    try {
+      double d = double.parse(s);
+      return (d.toInt() + 1).toString();
+    } catch (_) {
+      return s;
+    }
+  }
+
+  // Local Dropdown Helpers
   List<String> getAvailableDistricts() {
     if (!Hive.isBoxOpen('mappings_box')) return [];
     final box = Hive.box<MappingModel>('mappings_box');
@@ -34,13 +60,9 @@ class DispatchService {
         .map((e) => e.distHi.isNotEmpty ? e.distHi : e.distEn)
         .where((element) => element.isNotEmpty)
         .toSet();
-    
-    // List.from se Modifiable List banayein fir sort karein
-    final sortedList = List<String>.from(districts)..sort();
-    return sortedList;
+    return List<String>.from(districts)..sort();
   }
 
-  /// Selected District ke basis par Panchayat Samitis ki List
   List<String> getPanchayatSamitisForDistrict(String district) {
     if (!Hive.isBoxOpen('mappings_box')) return [];
     final box = Hive.box<MappingModel>('mappings_box');
@@ -49,73 +71,44 @@ class DispatchService {
         .map((e) => e.psHi.isNotEmpty ? e.psHi : e.psEn)
         .where((element) => element.isNotEmpty)
         .toSet();
-
-    // List.from se Modifiable List banayein fir sort karein
-    final sortedList = List<String>.from(psList)..sort();
-    return sortedList;
+    return List<String>.from(psList)..sort();
   }
 
-  /// Selected Panchayat Samiti ke basis par Gram Panchayats ki List
   List<String> getGramPanchayatsForPS(String district, String ps) {
     if (!Hive.isBoxOpen('mappings_box')) return [];
     final box = Hive.box<MappingModel>('mappings_box');
     final gpList = box.values
-        .where((e) => 
+        .where((e) =>
             (e.distHi == district || e.distEn == district) &&
             (e.psHi == ps || e.psEn == ps))
         .map((e) => e.gpHi.isNotEmpty ? e.gpHi : e.gpEn)
         .where((element) => element.isNotEmpty)
         .toSet();
-
-    // List.from se Modifiable List banayein fir sort karein
-    final sortedList = List<String>.from(gpList)..sort();
-    return sortedList;
+    return List<String>.from(gpList)..sort();
   }
 
-  // ==========================================
-  // DISPATCH PROCESSING LOGIC (OPTIMIZED)
-  // ==========================================
-
-  Future<String> processDispatchLocal({
+  // Sync Unmapped entries with AI in 50-50 Batches
+  Future<void> syncUnmappedWithAI({
     required Uint8List excelBytes,
-    required Uint8List docxBytes,
-    required String selectedYear,
     required Function(String status) onProgress,
   }) async {
     final box = Hive.box<MappingModel>('mappings_box');
-
-    // 1. Read Excel File
-    onProgress("Excel file padhi ja rahi hai...");
     var excel = Excel.decodeBytes(excelBytes);
     var table = excel.tables[excel.tables.keys.first];
+    if (table == null || table.rows.isEmpty) return;
 
-    if (table == null || table.rows.isEmpty) {
-      throw Exception("Excel file khaali hai ya format sahi nahi hai.");
-    }
-
-    // Header Columns Identify
     List<Data?> headerRow = table.rows.first;
     int colUnitName = -1;
     int colParentName = -1;
     int colDistrictName = -1;
-    int colDispatchName = -1;
-    int colAuditParty = -1;
-    int colParas = -1;
-    int colApprovalDate = -1;
 
     for (int i = 0; i < headerRow.length; i++) {
-      String val = headerRow[i]?.value?.toString().trim() ?? '';
-      if (val == 'Unit Name') colUnitName = i;
-      if (val == 'Parent Name') colParentName = i;
-      if (val == 'District Name') colDistrictName = i;
-      if (val == 'Dispatch Name') colDispatchName = i;
-      if (val == 'Audit Party No') colAuditParty = i;
-      if (val == 'Converted to Para in Nos') colParas = i;
-      if (val == 'Report Approval Date') colApprovalDate = i;
+      String val = _clean(headerRow[i]?.value).toLowerCase();
+      if (val.contains('unit name') || val.contains('gp name')) colUnitName = i;
+      if (val.contains('parent name') || val.contains('panchayat samiti')) colParentName = i;
+      if (val.contains('district')) colDistrictName = i;
     }
 
-    // 2. Identify Unmapped Entries
-    onProgress("Local Master Database check ho raha hai...");
     List<Map<String, String>> unmappedList = [];
     Set<String> unmappedKeys = {};
 
@@ -123,9 +116,9 @@ class DispatchService {
       var row = table.rows[r];
       if (row.isEmpty || colUnitName == -1 || row[colUnitName]?.value == null) continue;
 
-      String gpEn = row[colUnitName]!.value.toString().trim();
-      String psEn = colParentName != -1 ? (row[colParentName]?.value?.toString().trim() ?? '') : '';
-      String distEn = colDistrictName != -1 ? (row[colDistrictName]?.value?.toString().trim() ?? '') : '';
+      String gpEn = _clean(row[colUnitName]?.value);
+      String psEn = colParentName != -1 ? _clean(row[colParentName]?.value) : '';
+      String distEn = colDistrictName != -1 ? _clean(row[colDistrictName]?.value) : '';
 
       String normKey = "${_normalize(gpEn)}_${_normalize(psEn)}";
 
@@ -133,25 +126,38 @@ class DispatchService {
         unmappedKeys.add(normKey);
         unmappedList.add({
           "GP_EN": gpEn,
-          "PS_EN": psEn.replaceAll("Panchayat Samiti ", "").trim(),
+          "PS_EN": psEn.replaceAll(RegExp(r'(?i)panchayat samiti'), '').trim(),
           "DIST_EN": distEn,
         });
       }
     }
 
-    // 3. Gemini AI Transliteration (Unmapped items ke liye)
-    if (unmappedList.isNotEmpty && geminiApiKey.isNotEmpty) {
-      onProgress("${unmappedList.length} Nayi entries mili hain. Gemini AI se Hindi transliteration chal raha hai...");
+    if (unmappedList.isEmpty) {
+      onProgress("Sabhi entries pehle se local DB me mapped hain!");
+      return;
+    }
+
+    // 50-50 entries ke batches me AI ko send karna
+    int batchSize = 50;
+    int totalBatches = (unmappedList.length / batchSize).ceil();
+
+    final model = ai.GenerativeModel(model: 'gemini-2.5-flash', apiKey: geminiApiKey);
+
+    for (int b = 0; b < totalBatches; b++) {
+      int start = b * batchSize;
+      int end = (start + batchSize < unmappedList.length) ? start + batchSize : unmappedList.length;
+      var batch = unmappedList.sublist(start, end);
+
+      onProgress("AI Mapping batch ${b + 1}/$totalBatches ($start to $end) process ho raha hai...");
 
       try {
-        final model = ai.GenerativeModel(model: 'gemini-2.5-flash', apiKey: geminiApiKey);
         final prompt = '''
         You are an official administrative Hindi transliterator for Rajasthan Government documents.
         Convert the following list to official Hindi.
 
-        Data: ${jsonEncode(unmappedList)}
+        Data: ${jsonEncode(batch)}
 
-        Return ONLY a JSON Array with exact structure:
+        Return ONLY a JSON Array:
         [
           {
             "GP_EN": "...",
@@ -187,63 +193,119 @@ class DispatchService {
             distHi: item["DIST_HI"] ?? "बीकानेर",
           );
 
-          // Save to Hive DB
           await box.put(newMapping.keyName, newMapping);
         }
-        onProgress("Naye Hindi names Local DB mein save ho gaye hain.");
       } catch (e) {
-        onProgress("AI Translation Warning: $e");
+        onProgress("Batch ${b + 1} Error: $e");
       }
     }
+    onProgress("Sabhi ${unmappedList.length} Naye Records Save ho gaye hain!");
+  }
 
-    // 4. DOCX Covering Letters Generation (Optimized Loop)
-    onProgress("Covering Letters generate ho rahe hain...");
-    
-    // DocxTemplate ko ek baar parse karein loop ke bahar
+  // Cover Letter DOCX Generator
+  Future<List<String>> generateCoveringLetters({
+    required Uint8List excelBytes,
+    required Uint8List docxBytes,
+    required String selectedDistrict,
+    required String selectedPS,
+    required List<String> selectedGPs,
+    required bool isAllSelected,
+    required String selectedYear,
+    required Function(String status) onProgress,
+  }) async {
+    final box = Hive.box<MappingModel>('mappings_box');
+
+    onProgress("Excel Processing...");
+    var excel = Excel.decodeBytes(excelBytes);
+    var table = excel.tables[excel.tables.keys.first];
+
+    if (table == null || table.rows.isEmpty) return [];
+
+    List<Data?> headerRow = table.rows.first;
+    int colUnitName = -1, colParentName = -1, colDispatchName = -1, colParas = -1, colDate = -1;
+
+    for (int i = 0; i < headerRow.length; i++) {
+      String val = _clean(headerRow[i]?.value).toLowerCase();
+      if (val.contains('unit name') || val.contains('gp name')) colUnitName = i;
+      if (val.contains('parent name') || val.contains('panchayat samiti')) colParentName = i;
+      if (val.contains('dispatch name') || val.contains('dispatch')) colDispatchName = i;
+      if (val.contains('para')) colParas = i;
+      if (val.contains('date') || val.contains('approval')) colDate = i;
+    }
+
     final docxTemplate = await DocxTemplate.fromBytes(docxBytes);
-
     final outputDir = await getApplicationDocumentsDirectory();
     final saveFolder = Directory(p.join(outputDir.path, "Covering_Letters_${DateTime.now().millisecondsSinceEpoch}"));
     await saveFolder.create(recursive: true);
 
-    int generatedCount = 0;
+    List<String> generatedPaths = [];
 
     for (int r = 1; r < table.rows.length; r++) {
       var row = table.rows[r];
       if (row.isEmpty || colUnitName == -1 || row[colUnitName]?.value == null) continue;
 
-      String gpEn = row[colUnitName]!.value.toString().trim();
-      String psEn = colParentName != -1 ? (row[colParentName]?.value?.toString().trim() ?? '') : '';
-      String normKey = "${_normalize(gpEn)}_${_normalize(psEn)}";
+      String gpEn = _clean(row[colUnitName]?.value);
+      String psEn = colParentName != -1 ? _clean(row[colParentName]?.value) : '';
 
+      String normKey = "${_normalize(gpEn)}_${_normalize(psEn)}";
       MappingModel? mapItem = box.get(normKey);
 
-      String dispatchNo = colDispatchName != -1 ? (row[colDispatchName]?.value?.toString().trim() ?? '') : '';
-      String dateStr = colApprovalDate != -1 ? (row[colApprovalDate]?.value?.toString().trim() ?? '06/10/2026') : '06/10/2026';
-      int paraCount = colParas != -1 ? int.tryParse(row[colParas]?.value?.toString() ?? '0') ?? 0 : 0;
+      String currentGPHi = mapItem?.gpHi ?? gpEn;
 
-      // Fill Content Context (using docx_template Content)
+      // Filtering Check
+      if (!isAllSelected && !selectedGPs.contains(currentGPHi) && !selectedGPs.contains(gpEn)) {
+        continue;
+      }
+
+      String dName = colDispatchName != -1 ? _clean(row[colDispatchName]?.value) : '';
+      String dNo = _formatDispatchNo(dName);
+      String dateVal = colDate != -1 ? _clean(row[colDate]?.value) : '06.10.26';
+      String paraOriginal = colParas != -1 ? _clean(row[colParas]?.value) : '0';
+      String paraPlus1 = _paraPlusOne(paraOriginal);
+
+      String gpEngShort = gpEn.replaceAll(RegExp(r'^\s*gram\s+panchayat\s+', caseSensitive: false), '').trim();
+
       Content c = Content();
-      c.add(TextContent("OFFICE_NAME", mapItem?.distHi ?? 'बीकानेर'));
-      c.add(TextContent("DIVISION_NAME", mapItem?.distHi ?? 'बीकानेर'));
       c.add(TextContent("YEAR", selectedYear));
-      c.add(TextContent("DISPATCH_NO", dispatchNo));
-      c.add(TextContent("DATE", dateStr));
-      c.add(TextContent("PS_NAME_HI", mapItem?.psHi ?? psEn));
-      c.add(TextContent("DISTRICT_HI", mapItem?.distHi ?? 'बीकानेर'));
-      c.add(TextContent("GP_NAME_HI", mapItem?.gpHi ?? gpEn));
-      c.add(TextContent("PARA_COUNT", paraCount.toString()));
-      c.add(TextContent("PARA_BREAKUP", paraCount > 0 ? "आक्षेप सं. 1 से $paraCount" : "आक्षेप सं. 0"));
+      c.add(TextContent("GP_NAME_EN", gpEn));
+      c.add(TextContent("GP_NAME_ENG", gpEngShort));
+      c.add(TextContent("GP_NAME_HI", "$currentGPHi ($gpEngShort)"));
+      c.add(TextContent("PS_NAME_EN", mapItem?.psEn ?? selectedPS));
+      c.add(TextContent("PS_NAME_HI", mapItem?.psHi ?? selectedPS));
+      c.add(TextContent("DISTRICT_EN", mapItem?.distEn ?? selectedDistrict));
+      c.add(TextContent("DISTRICT_HI", mapItem?.distHi ?? selectedDistrict));
+      c.add(TextContent("DISPATCH_NO", dNo));
+      c.add(TextContent("DISPATCH_NAME", dName));
+      c.add(TextContent("DATE", dateVal));
+      c.add(TextContent("PARA_COUNT", paraPlus1));
+      c.add(TextContent("OFFICE_NAME", mapItem?.distHi ?? selectedDistrict));
+      c.add(TextContent("DIVISION_NAME", mapItem?.distHi ?? selectedDistrict));
+      c.add(TextContent("CONSTITUTION_OBJECTION", "0"));
+      c.add(TextContent("SERIOUS_OBJECTION", "0"));
+      c.add(TextContent("PARA_BREAKUP", paraOriginal));
 
       final docGenerated = await docxTemplate.generate(c);
       if (docGenerated != null) {
         String safeName = gpEn.replaceAll(RegExp(r'[^\w\-_\. ]'), '_');
         File outFile = File(p.join(saveFolder.path, "Covering_Letter_$safeName.docx"));
         await outFile.writeAsBytes(docGenerated);
-        generatedCount++;
+        generatedPaths.add(outFile.path);
       }
     }
 
-    return "$generatedCount Files successfully save ho gayi hain: ${saveFolder.path}";
+    onProgress("${generatedPaths.length} Files Ban Chuki Hain!");
+    return generatedPaths;
+  }
+
+  // Share to WhatsApp
+  Future<void> shareToWhatsApp(List<String> filePaths) async {
+    if (filePaths.isEmpty) return;
+    final xFiles = filePaths.map((e) => XFile(e)).toList();
+    await Share.shareXFiles(xFiles, text: 'INS RAMA - Covering Letters');
+  }
+
+  // Print PDF Helper
+  Future<void> printPdfDocument(Uint8List pdfBytes) async {
+    await Printing.layoutPdf(onLayout: (format) async => pdfBytes);
   }
 }
