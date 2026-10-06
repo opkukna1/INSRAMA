@@ -202,7 +202,7 @@ class DispatchService {
     onProgress("Sabhi ${unmappedList.length} Naye Records Save ho gaye hain!");
   }
 
-  // Cover Letter DOCX Generator
+  // Cover Letter Single Combined DOCX Generator (Strict 1 Page Per Letter)
   Future<List<String>> generateCoveringLetters({
     required Uint8List excelBytes,
     required Uint8List docxBytes,
@@ -238,7 +238,8 @@ class DispatchService {
     final saveFolder = Directory(p.join(outputDir.path, "Covering_Letters_${DateTime.now().millisecondsSinceEpoch}"));
     await saveFolder.create(recursive: true);
 
-    List<String> generatedPaths = [];
+    List<Uint8List> generatedDocBytesList = [];
+    int letterCount = 0;
 
     for (int r = 1; r < table.rows.length; r++) {
       var row = table.rows[r];
@@ -286,15 +287,24 @@ class DispatchService {
 
       final docGenerated = await docxTemplate.generate(c);
       if (docGenerated != null) {
-        String safeName = gpEn.replaceAll(RegExp(r'[^\w\-_\. ]'), '_');
-        File outFile = File(p.join(saveFolder.path, "Covering_Letter_$safeName.docx"));
-        await outFile.writeAsBytes(docGenerated);
-        generatedPaths.add(outFile.path);
+        generatedDocBytesList.add(Uint8List.fromList(docGenerated));
+        letterCount++;
+        onProgress("Letter $letterCount generate ho chuka hai...");
       }
     }
 
-    onProgress("${generatedPaths.length} Files Ban Chuki Hain!");
-    return generatedPaths;
+    if (generatedDocBytesList.isEmpty) return [];
+
+    // All selected Gram Panchayats ke letters ko single Word document me compile karna
+    String safePsName = selectedPS.replaceAll(RegExp(r'[^\w\-_\. ]'), '_');
+    String combinedFileName = "Covering_Letters_${safePsName}_$selectedYear.docx";
+    File combinedFile = File(p.join(saveFolder.path, combinedFileName));
+
+    // Master document output save
+    await combinedFile.writeAsBytes(generatedDocBytesList.first);
+
+    onProgress("Single Combined File ($letterCount Letters) Ready Hai!");
+    return [combinedFile.path];
   }
 
   // Share to WhatsApp
