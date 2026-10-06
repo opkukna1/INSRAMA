@@ -141,7 +141,13 @@ class DispatchService {
     int batchSize = 50;
     int totalBatches = (unmappedList.length / batchSize).ceil();
 
-    final model = ai.GenerativeModel(model: 'gemini-2.5-flash', apiKey: geminiApiKey);
+    final model = ai.GenerativeModel(
+      model: 'gemini-2.5-flash',
+      apiKey: geminiApiKey,
+      generationConfig: ai.GenerationConfig(
+        responseMimeType: 'application/json',
+      ),
+    );
 
     for (int b = 0; b < totalBatches; b++) {
       int start = b * batchSize;
@@ -202,7 +208,7 @@ class DispatchService {
     onProgress("Sabhi ${unmappedList.length} Naye Records Save ho gaye hain!");
   }
 
-  // Cover Letter Single Combined DOCX Generator (Strict 1 Page Per Letter)
+  // Cover Letter DOCX Generator
   Future<List<String>> generateCoveringLetters({
     required Uint8List excelBytes,
     required Uint8List docxBytes,
@@ -238,7 +244,7 @@ class DispatchService {
     final saveFolder = Directory(p.join(outputDir.path, "Covering_Letters_${DateTime.now().millisecondsSinceEpoch}"));
     await saveFolder.create(recursive: true);
 
-    List<Uint8List> generatedDocBytesList = [];
+    List<String> generatedFilePaths = [];
     int letterCount = 0;
 
     for (int r = 1; r < table.rows.length; r++) {
@@ -287,24 +293,21 @@ class DispatchService {
 
       final docGenerated = await docxTemplate.generate(c);
       if (docGenerated != null) {
-        generatedDocBytesList.add(Uint8List.fromList(docGenerated));
         letterCount++;
-        onProgress("Letter $letterCount generate ho chuka hai...");
+        String safeGpName = gpEngShort.replaceAll(RegExp(r'[^\w\-_\. ]'), '_');
+        String fileName = "Cover_Letter_${safeGpName}_$selectedYear.docx";
+        File file = File(p.join(saveFolder.path, fileName));
+        await file.writeAsBytes(docGenerated);
+        generatedFilePaths.add(file.path);
+        
+        onProgress("Letter $letterCount ($currentGPHi) generate ho chuka hai...");
       }
     }
 
-    if (generatedDocBytesList.isEmpty) return [];
+    if (generatedFilePaths.isEmpty) return [];
 
-    // All selected Gram Panchayats ke letters ko single Word document me compile karna
-    String safePsName = selectedPS.replaceAll(RegExp(r'[^\w\-_\. ]'), '_');
-    String combinedFileName = "Covering_Letters_${safePsName}_$selectedYear.docx";
-    File combinedFile = File(p.join(saveFolder.path, combinedFileName));
-
-    // Master document output save
-    await combinedFile.writeAsBytes(generatedDocBytesList.first);
-
-    onProgress("Single Combined File ($letterCount Letters) Ready Hai!");
-    return [combinedFile.path];
+    onProgress("Total $letterCount Letters Successfully Ready Hain!");
+    return generatedFilePaths;
   }
 
   // Share to WhatsApp
